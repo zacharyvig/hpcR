@@ -23,34 +23,85 @@ R_job <- R6::R6Class(
   classname = "R_job",
 
   private = list(
+
     # the process or scheduler job id that uniquely identifies this job
     job_id = NULL,
 
     # sequence id for this job
-    seq_id = NULL,
+    #seq_id = NULL,
 
-    # take an `r_input`-like argument and parse if it's code or a path; returns a list
-    parse_r_input = function(r_input) {
-      if (test_file_exists(r_input)) {
-        # read in r_code from external script
-        r_code <- readLines(r_script)
-        r_script <- r_input
-      } else {
-        assert_multi_class(r_code, c("expression", "character"))
-        r_script <- NULL
-        r_code <- if (is.expression(r_code)) {
-            as.character(r_code)
-          } else {
-            unlist(strsplit(r_input, "\n"))
-          }
+    # r_code for this job; accessible via active binding
+    user_r_code = NULL,
+
+    # r_script for this job; accessible via active binding
+    user_r_script = NULL,
+
+    # post_subs_r_code for this job; accessible via active binding
+    user_post_subs_r_code = NULL,
+
+    # post_subs_r_script for this job; accessible via active binding
+    user_post_subs_r_script = NULL,
+
+    # temporary file for storing main R code
+    tmp_r_script = NULL,
+
+    # temporary file for storing post-subs R code
+    tmp_post_subs_r_script = NULL,
+
+    gen_tmp_path = function() {
+      smp <- sample(c(LETTERS, letters, 0:9), size = 12)
+      str <- paste0(smp, collapse = "")
+      path <- file.path(self$job_dir, sprintf(".tmp_%s.R", str))
+      return(path)
+    },
+
+    write_tmp = function() {
+      if (!is.null(private$user_r_code)) {
+        tmp <- private$gen_tmp_path()
+        private$tmp_r_script <- tmp
+        writeLines(private$user_r_code, con = tmp)
       }
-      return(list(code = r_code, script = r_script))
+      if (!is.null(private$user_post_subs_r_code)) {
+        tmp <- private$gen_tmp_path()
+        private$tmp_post_subs_r_script <- tmp
+        writeLines(private$user_post_subs_r_code, con = tmp)
+      }
+    },
+
+    check = function() {
+      if (
+        !is.null(private$user_r_script) &
+        !test_file_exists(private$user_r_script)
+        ) {
+        cli_abort(
+          c("{.code r_script = {.path {r_script}}} does not exist.",
+            "Cannot submit job.")
+        )
+      }
+      if (is.null(private$user_r_script) & is.null(private$user_r_code)) {
+        cli_abort(
+          c("Both {.code r_script} and {.code r_code} are NULL.",
+            "Cannot submit job.")
+        )
+      }
+      if (
+        !is.null(private$user_post_subs_r_script) &
+        !test_file_exists(private$user_post_subs_r_script)
+        ) {
+        cli_abort(
+          c("{.code post_subs_r_script = {.path {post_subs_r_script}}} does not exist.",
+            "Cannot submit job.")
+        )
+      }
+
     },
 
     # helper to get batch file using system.file
     get_batch_file = function(scheduler) {
       if (scheduler %in% c("sbatch", "slurm")) {
         batch_file <- system.file(glue("submit_batch.sbatch"), package = "hpcR")
+      } else {
+        batch_file <- NULL
       }
       return(batch_file)
     },
@@ -95,21 +146,164 @@ R_job <- R6::R6Class(
 
     # helper to get environmental variables for submit_job
     get_env_variables = function() {
+      r_script <- if (!is.null(private$user_r_script)) {
+        private$user_r_script
+      } else {
+        private$tmp_r_script
+      }
+      post_subs_r_script <- if (!is.null(private$user_post_subs_r_script)) {
+        private$user_post_subs_r_script
+      } else {
+        private$tmp_post_subs_r_script
+      }
       env_variables <- c(
+        job_dir = self$job_dir,
         shell_code = paste(self$shell_code, collapse = "&&"),
         R_HOME = R.home(),
         compute_file = private$get_compute_file(),
         print_session_info = self$print_session_info,
         print_environment = self$print_environment,
         r_packages = paste(self$r_packages, collapse = ", "),
-        r_code = paste(self$r_code, collapse = ", "),
+        input_rdata_file = self$input_rdata_file,
+        r_script = r_script,
+        is_r_script_tmp = !is.null(private$tmp_r_script),
         wait_for_subs = self$wait_for_subs,
-        repolling_interval = self$repolling_interval,
-        max_wait = self$max_wait,
+        repolling_interval = self$control.wait_for_subs$repolling_interval,
+        max_wait = self$control.wait_for_subs$max_wait,
         scheduler = self$scheduler,
         all_subs_success = self$all_subs_success,
-        post_subs_r_code = paste(self$post_subs_r_code, collapse = "; ")
+        post_subs_r_script = post_subs_r_script,
+        is_post_subs_r_script_tmp = !is.null(private$tmp_post_subs_r_script),
+        output_rdata_file = self$output_rdata_file
       )
+      return(env_variables)
+    }
+
+  ),
+
+  active = list(
+
+    #' @field r_script The R code to be executed by this job. This can be a character
+    #' vector that includes multiple R statements or an expression object containing
+    #' the R code to be evaluated
+    r_script = function(value) {
+      if (missing(value)) {
+        return(private$user_r_script)
+      }
+      if (is.null(private$user_r_code)) {
+        if (!is.null(value) & !test_file_exists(value)) {
+          cli_warn(
+            c("{.code r_script = '{.path {value}}'} does not exist.",
+            "Did you mean to pass to {.code r_code}?")
+          )
+        }
+        if (!is.null(private$user_r_script)) {
+          cli_inform(
+            "Overwriting old {.code r_script}"
+          )
+        }
+        private$user_r_script <- value
+      } else {
+        cli_warn(
+          c("{.code r_code} is already set (and is mutually exclusive).",
+            "Set it to NULL if you want to update {.code r_script}")
+        )
+      }
+    },
+
+    #' @field r_code The R code to be executed by this job. This can be a character
+    #' vector that includes multiple R statements or an expression object containing
+    #' the R code to be evaluated. (Mutually exclusive with \code{r_script})
+    r_code = function(value) {
+      if (missing(value)) {
+        return(private$user_r_code)
+      }
+      if (is.null(private$user_r_script)) {
+        r_code <- if (is.expression(value)) {
+          as.character(value)
+        } else if (is.character(value)) {
+          unlist(strsplit(value, "\n"))
+        } else if (is.null(value)) {
+          NULL
+        } else {
+          cli_abort(
+            "Invalid class: {.code r_code}"
+          )
+        }
+        if (!is.null(private$user_r_code)) {
+          cli_inform(
+            "Overwriting old {.code r_code}"
+          )
+        }
+        private$user_r_code <- r_code
+      } else {
+        cli_warn(
+          c("{.code r_script} is already set (and is mutually exclusive).",
+            "Set it to NULL if you want to update {.code r_code}")
+        )
+      }
+    },
+
+    #' @field post_subs_r_script The path to an R script to be executed by the batch after
+    #' all sub jobs complete Only relevant if \code{wait_for_subs = TRUE}. (Mutually
+    #' exclusive with \code{post_subs_r_code}).
+    post_subs_r_script = function(value){
+      if (missing(value)) {
+        return(private$user_post_subs_r_script)
+      }
+      if (is.null(private$user_post_subs_r_code)) {
+        if (!is.null(value) & !test_file_exists(value)) {
+          cli_warn(
+            c("{.code post_subs_r_script = {.path {value}}} does not exist.",
+              "Did you mean to pass to {.code post_subs_r_code}?")
+          )
+        }
+        if (!is.null(private$userpost_subs_r_script)) {
+          cli_inform(
+            "Overwriting old {.code post_subs_r_script}"
+          )
+        }
+        private$user_post_subs_r_script <- value
+      } else {
+        cli_warn(
+          c("{.code post_subs_r_code} is already set (and is mutually exclusive).",
+            "Set it to NULL if you want to update {.code post_subs_r_script}")
+        )
+      }
+    },
+
+    #' @field post_subs_r_code The R code to be executed by the batch after all sub jobs
+    #' complete. This can be a character vector that includes multiple R statements
+    #' or an expression object containing the R code to be evaluated. Only relevant
+    #' if \code{wait_for_subs = TRUE}. (Mutually exclusive with \code{post_subs_r_script})
+    post_subs_r_code = function(value) {
+      if (missing(value)) {
+        return(private$user_post_subs_r_code)
+      }
+      if (is.null(private$user_post_subs_r_script)) {
+        post_subs_r_code <- if (is.expression(value)) {
+          as.character(value)
+        } else if (is.character(value)) {
+          unlist(strsplit(value, "\n"))
+        } else if (is.null(value)) {
+          NULL
+        } else {
+          cli_abort(
+            "Invalid class: {.code post_subs_r_code}"
+          )
+        }
+        if (!is.null(private$user_post_subs_r_code)) {
+          cli_inform(
+            "Overwriting old {.code post_subs_r_code}"
+          )
+        }
+        private$user_post_subs_r_code <- post_subs_r_code
+      } else {
+        cli_warn(
+          c("{.code post_subs_r_script} is already set (and is mutually exclusive).",
+            "Set it to NULL if you want to update {.code post_subs_r_code}")
+        )
+      }
     }
 
   ),
@@ -123,15 +317,6 @@ R_job <- R6::R6Class(
     #' @field job_dir Location of "home" directory for this job. Needs to be somewhere
     #' that both compute nodes and login nodes can access, so /tmp is not suggested.
     job_dir = NULL,
-
-    #' @field r_code The R code to be executed by this job. This can be a character
-    #' vector that includes multiple R statements or an expression object containing
-    #' the R code to be evaluated
-    r_code = NULL,
-
-    #' @field r_script The path to the R script to be executed. This may be specified
-    #' by the user or written by the R_job object in the case it is not provided.
-    r_script = NULL,
 
     #' @field scheduler The job scheduler to be used for this batch. Options are:
     #' "slurm"/"sbatch", "torque"/"qsub", or "local"/"sh".
@@ -165,12 +350,12 @@ R_job <- R6::R6Class(
     parent_jobs = NULL,
 
     #' @field wait_for_subs If TRUE, code will be inserted to wait for all jobs
-    #' in a vector called \code{sub_job_ids} to finish before the batch exits.
+    #' in a vector called \code{SUB_JOB_IDS} to finish before the batch exits.
     #' It's up to your code to use this variable name
     wait_for_subs = FALSE,
 
-    #' @field all_subs_success If TRUE, all jobs in vector \code{sub_job_ids}
-    #'    must be successful for this job to finish (see \code{wait_for_subs} field)
+    #' @field all_subs_success If TRUE, all jobs in vector \code{SUB_JOB_IDS}
+    #' must be successful for this job to finish (see \code{wait_for_subs} field)
     all_subs_success = FALSE,
 
     #' @field sqlite_db File path to job tracking SQLite database
@@ -202,20 +387,22 @@ R_job <- R6::R6Class(
     #' variable exports, etc.
     shell_code = NULL,
 
-    #' @field post_subs_r_code The R code to be executed after sub jobs have completed.
-    #' This can be a character vector that includes multiple R statements or an
-    #' expression object containing the R code to be evaluated. Only relevant if
-    #' wait_for_subs = TRUE
-    post_subs_r_code = NULL,
-
     #' @field output_rdata_file The name of the environment to be saved at the
     #' end of the R batch execution, which can then be loaded by subsequent jobs.
     output_rdata_file = NULL,
 
-    #' @field repolling_interval The number of seconds to wait between successive
-    #' checks on whether parent jobs have completed. This is mostly relevant to
-    #' the 'local' scheduler.
-    repolling_interval = 300, # seconds
+    #' @field control.submit_job A named list with control variables used by
+    #' \code{wait_for_job} when waiting for parent jobs to finish. Arguments include
+    #' \code{repolling_interval}, which is the number of seconds to wait between
+    #' successive checks on whether parent jobs have completed, and \code{max_wait}
+    #' which is the maximum number of seconds to wait for parent jobs to finish
+    #' before ending execution.
+    control.submit_job = NULL,
+
+    #' @field control.wait_for_subs A named list with control variables used by
+    #' \code{wait_for_job} when waiting for sub jobs to finish before this job
+    #' continues. See \code{control.submit_job} for details.
+    control.wait_for_subs = NULL,
 
     #' @field print_session_info If TRUE, print the `sessionInfo()` and `Sys.info()`
     #' when the job starts. Useful for debugging problems with the compute
@@ -230,8 +417,10 @@ R_job <- R6::R6Class(
     #' @description Create a new R_job object
     #' @details The scheduler-generated job ID is made available to your R
     #' script as \code{JOB_ID}.
-    #' @param r_input A character vector or expression containing R code to be executed,
-    #' or a path to an R script to be executed.
+    #' @param r_script The path to an R script to be executed by the batch.
+    #' (Mutually exclusive with \code{r_code})
+    #' @param r_code A character vector or expression containing R code to be executed.
+    #' (Mutually exclusive with \code{r_script})
     #' @param job_name A character string. The name of the job used in dependency
     #' specification and job scheduler naming.
     #' @param job_dir  A character string. The path to the 'home' directory for this job.
@@ -257,9 +446,16 @@ R_job <- R6::R6Class(
     #' @param parent_jobs Numberical or character vector of one or more job ids
     #' that are parents of this job.
     #' @param wait_for_subs Logical. If \code{TRUE}, do not end this job until all
-    #' sub-jobs have completed. Default: \code{FALSE}
+    #' sub-jobs have completed. Assign sub-job ids to \code{SUB_JOB_IDS} in your
+    #' code. Default: \code{FALSE}
     #' @param all_subs_success If \code{TRUE}, don't count this job as successful
     #' unless all sub-jobs are successful. Default: \code{FALSE}
+    #' @param post_subs_r_script The path to an R script to be executed by the batch
+    #' after sub jobs have completed. Only relevant if \code{wait_for_subs = TRUE}
+    #' (Mutually exclusive with \code{post_subs_r_code})
+    #' @param post_subs_r_code A character vector or expression containing R code to be
+    #' executed after sub jobs have completed. Only relevant if \code{wait_for_subs = TRUE}
+    #' (Mutually exclusive with \code{post_subs_r_script})
     #' @param sqlite_db A character string. The location of the SQLite database
     #' to be used for job tracking. If `NULL`, job tracking will be disabled.
     #' TODO: If sqlite db provided doesn't exist, write to job_dir
@@ -274,58 +470,42 @@ R_job <- R6::R6Class(
     #' with input_rdata_file at present.
     #' @param shell_code A character vector of shell code to be included in the batch
     #' script that submits the job
-    #' @param post_subs_r_code A character vector or expression containing R code
-    #' to be executed after waiting for sub jobs to finish.
     #' @param output_rdata_file The name of the environment to be saved at the
     #' end of the R batch execution
-    #' @param repolling_interval A number The number of seconds to wait before
-    #' rechecking whether parent jobs have completed
+    #' @param control.submit_job A named list with control variables used by
+    #' \code{submit_job} when submitting this job, e.g., \code{repolling_interval},
+    #' \code{max_wait}, and \code{wait_signal}. This argument defaults when
+    #' \code{scheduler = "local"}. For expert use only.
+    #' @param control.wait_for_subs A named list with control variables used by
+    #' \code{wait_for_job} when waiting for sub jobs to finish. Arguments include
+    #' \code{repolling_interval} and \code{max_wait}. This argument defaults when
+    #' \code{wait_for_subs = TRUE}. For expert use only.
     #' @param print_session_info Logical. If \code{TRUE}, print information about
     #' the R environment `sessionInfo()` and compute environment `Sys.info()` when
     #' the job starts. Default: \code{TRUE}
     #' @param print_environment Logical. If \code{TRUE}, print the session environment
     #' via `Sys.getenv()` when the job starts. Default: \code{FALSE}.
-    initialize = function(r_input = NULL, job_name = NULL, job_dir = NULL,
-                          scheduler = NULL, n_nodes = NULL, n_cores = NULL,
-                          wall_time = NULL, mem_total = NULL, mem_per_cpu = NULL,
-                          array = NULL, parent_jobs = NULL, wait_for_subs = FALSE,
-                          all_subs_success = FALSE, sqlite_db = NULL,
-                          scheduler_options = NULL, r_packages = NULL,
-                          input_rdata_file = NULL, input_objects = NULL,
-                          shell_code = NULL, post_subs_r_code = NULL,
-                          output_rdata_file = NULL, repolling_interval = NULL,
-                          print_session_info = TRUE, print_environment = FALSE
+    initialize = function(r_script = NULL, r_code = NULL, job_name = NULL,
+                          job_dir = NULL, scheduler = NULL, n_nodes = NULL,
+                          n_cores = NULL, wall_time = NULL, mem_total = NULL,
+                          mem_per_cpu = NULL, array = NULL, parent_jobs = NULL,
+                          wait_for_subs = FALSE, all_subs_success = FALSE,
+                          post_subs_r_script = NULL, post_subs_r_code = NULL,
+                          sqlite_db = NULL, scheduler_options = NULL,
+                          r_packages = NULL, input_rdata_file = NULL,
+                          input_objects = NULL, shell_code = NULL,
+                          output_rdata_file = NULL, control.submit_job = NULL,
+                          control.wait_for_subs = NULL, print_session_info = TRUE,
+                          print_environment = FALSE
                           ) {
-      if (is.null(r_input)) {
-        cli_abort(
-          c("Unable to initialize 'R_job' object without `r_input`.",
-            "i" = "`r_input` must be a character vector/expression to be executed or a path to R script.")
-        )
-      }
-      out <- private$parse_r_input(r_input)
-      if (!is.null(out$r_code)) {
-        if (length(out$r_code) == 0) {
-          cli_abort(
-            c("No code found in {.code r_input}.",
-              "Could the input be empty?")
-          )
-        }
-        self$r_code <- out$code
-      }
-      if (!is.null(out$r_script)) self$r_script <- out$script
-
-      if (!is.null(job_name)) {
-        assert_string(job_name)
-        self$job_name <- as.character(job_name)
-      }
-      # TODO: only need job dir if using sqlite db and out_rdata (and in_rdata?)
+      # TODO: only need job dir if using sqlite db and out_rdata. Make job_dir active binding (with those other two)?
       if (!is.null(job_dir)) {
         assert_string(job_dir)
         if (!test_directory_exists(job_dir)) {
           cli_warn(
             c(
-            "Job directory currently does not exist: {.path {job_dir}}",
-            "i" = "Make sure it exists by the time of job submission to avoid errors!"
+              "Job directory currently does not exist: {.path {job_dir}}",
+              "i" = "Make sure it exists by the time of job submission to avoid errors!"
             )
           )
         }
@@ -337,6 +517,27 @@ R_job <- R6::R6Class(
         )
       }
 
+      if (is.null(r_script) & is.null(r_code)) {
+        cli_abort(
+          "Unable to initialize {.code R_job} object without {.code r_script} or {.code r_code}."
+        )
+      } else if (!is.null(r_script) & !is.null(r_code)) {
+        cli_abort(
+          "{.code r_script} and {.code r_code} are mutually exclusive!"
+        )
+      } else {
+        if (!is.null(r_script)) {
+          self$r_script <- r_script
+        } else {
+          self$r_code <- r_code
+        }
+      }
+
+      if (!is.null(job_name)) {
+        assert_string(job_name)
+        self$job_name <- as.character(job_name)
+      }
+      # TODO: make EVERYTHING active bindings for verification checks (??)
       if (is.null(scheduler)) {
         cli_abort(
           "{.code scheduler} missing with no default"
@@ -374,7 +575,9 @@ R_job <- R6::R6Class(
         assert_string(wall_time)
         self$wall_time <- as.character(wall_time)
       }
-
+      # TODO: Default is mem_total but this is mutually exclusive with mem_per_cpu
+      # If user provides mem_per_cpu but not mem_total, nullify mem_total. If user
+      # provides both, throw error. Active bindings?
       if (is.null(mem_total)) {
         cli_inform(
           "Using default total memory: {self$mem_total}"
@@ -448,7 +651,7 @@ R_job <- R6::R6Class(
           input_objects <- as.environment(input_objects)
         }
         self$input_objects <- input_objects # store objects internally for output
-        self$input_rdata_file <- "R_job_environment.RData" # put in job directory?
+        self$input_rdata_file <- "R_job_environment.RData" # TODO: put in job directory?
       }
 
       if (!is.null(input_rdata_file)) {
@@ -470,20 +673,16 @@ R_job <- R6::R6Class(
         self$shell_code <- shell_code
       }
 
-      if (!is.null(post_subs_r_code)) {
-        if(isFALSE(wait_for_subs)) {
-          cli_abort(
-            "Cannot specify {.code post_subs_r_code} if {.code wait_for_subs} is set to FALSE"
-          )
+      if (!is.null(post_subs_r_script) & !is.null(post_subs_r_code)) {
+        cli_abort(
+          "{.code post_subs_r_script} and {.code post_subs_r_code} are mutually exclusive!"
+        )
+      } else if (!is.null(post_subs_r_script) | !is.null(post_subs_r_code)) {
+        if (!is.null(post_subs_r_script)) {
+          self$post_subs_r_script <- post_subs_r_script
+        } else {
+          self$post_subs_r_code <- post_subs_r_code
         }
-        out <- private$parse_r_input(post_subs_r_code)
-        if (length(out$code) == 0) {
-          cli_abort(
-            c("No code found in {.code post_subs_r_code}.",
-              "Could the input be empty?")
-          )
-        }
-        self$post_subs_r_code <- out$code
       }
 
       if (!is.null(output_rdata_file)) {
@@ -491,9 +690,24 @@ R_job <- R6::R6Class(
         self$output_rdata_file <- output_rdata_file
       }
 
-      if (!is.null(repolling_interval)) {
-        assert_number(repolling_interval, lower = 0.1, upper = 2e5)
-        self$repolling_interval <- repolling_interval
+      if (is.null(control.submit_job) & scheduler == "local") {
+        self$control.submit_job <- list(
+          repolling_interval = 60L,
+          max_wait = 60 * 60 * 24
+        )
+      }
+      if(!is.null(control.submit_job$sched_args)) {
+        cli_warn(
+          c("Scheduler arguments are already handled by {.code R_job}.",
+            "Ignoring {.code control.submit_job$sched_args}")
+        )
+      }
+
+      if (is.null(control.wait_for_subs) & isTRUE(wait_for_subs)) {
+        self$control.wait_for_subs <- list(
+          repolling_interval = 300L,
+          max_wait = 60 * 60 * 24
+        )
       }
 
       if (!is.null(print_session_info)) {
@@ -505,29 +719,49 @@ R_job <- R6::R6Class(
         assert_logical(print_environment, len = 1L)
         self$print_environment <- print_environment
       }
+
     },
 
     #' @description Submit job to scheduler or local compute
     submit = function() {
       cd <- getwd(); setwd(self$job_dir)
+      # make sure scripts or code exist, if applicable
+      private$check()
+      # write temporary files (if necessary)
+      private$write_tmp()
+      # print submission message
+      job_name <- if (is.null(self$job_name)) { "(no name)" } else { self$job_name }
       cli_alert_info(
-        "Submitting job: {self$job_name}"
+        "Submitting job: {job_name}"
       )
       # TODO: if a job_id already exists and submit is called again, do we check
       # job status, insist a 'forced' submission?
-      private$job_id <- submit_job(
-        scheduler = self$scheduler,
-        input = private$get_batch_file(self$scheduler),
-        is_script = TRUE,
-        echo = FALSE,
-        fail_on_error = FALSE,
-        wait_jobs = self$parent_jobs,
-        env_variables = private$get_env_variables(),
-        control = list(
-          sched_args = private$get_sched_args(),
-          repolling_interval = self$repolling_interval
-          )
+      private$job_id <- tryCatch({
+        job_id <- submit_job(
+          scheduler = self$scheduler,
+          input = private$get_batch_file(self$scheduler),
+          is_script = TRUE,
+          echo = FALSE,
+          fail_on_error = TRUE,
+          wait_jobs = self$parent_jobs,
+          env_variables = private$get_env_variables(),
+          control = self$control.submit_job
         )
+        return(job_id)
+      },
+      error = function(e) {
+        # delete tmp files in case of error
+        if (!is.null(private$tmp_r_script)) {
+          try(unlink(private$tmp_r_script))
+        }
+        if (!is.null(private$tmp_post_subs_r_script)) {
+          try(unlink(private$tmp_post_subs_r_script))
+        }
+        cli_abort(
+          c("Job submission failed!",
+          e$message)
+        )
+      })
       cli_alert_info(
         "Job received with job ID: {private$job_id}"
       )
@@ -538,12 +772,13 @@ R_job <- R6::R6Class(
     },
 
     #' @description Create a deep copy of a batch job with minor changes
-    #'
     #' @details This method exposes a few named parameters that can be used to override
     #' the copied fields with new values to avoid needing to change these one-by-one
     #' using obj$<field> <- x syntax
-    #' @param r_input A character vector or expression containing R code to be executed,
-    #' or a path to an R script to be executed.
+    #' @param r_script The path to an R script to be executed by the batch.
+    #' (Mutually exclusive with \code{r_code})
+    #' @param r_code A character vector or expression containing R code to be executed.
+    #' (Mutually exclusive with \code{r_script})
     #' @param job_name The name of the job used in dependency specification and job
     #' scheduler naming
     #' @param n_nodes A number or character string. The number of compute nodes
@@ -556,30 +791,22 @@ R_job <- R6::R6Class(
     #' to requested by the job.
     #' @param mem_per_cpu A number or character string. The amount of memory to
     #' be requested per CPU
-    copy = function(
-                r_input = NULL,
-                job_name = NULL,
-                n_nodes = NULL,
-                n_cores = NULL,
-                wall_time = NULL,
-                mem_total = NULL,
-                mem_per_cpu = NULL
+    copy = function(r_script = NULL, r_code = NULL, job_name = NULL, n_nodes = NULL,
+                    n_cores = NULL, wall_time = NULL, mem_total = NULL, mem_per_cpu = NULL
                 ) {
       cloned <- self$clone(deep = TRUE)
-
-      if (!is.null(r_input)) {
-        out <- private$parse_r_input(r_input)
-        if (!is.null(out$r_code)) {
-          if (length(out$r_code) == 0) {
-            cli_abort(
-              c("No code found in {.code r_input}.",
-                "Could the input be empty?")
-            )
-          }
-          cloned$r_code <- out$r_code
+      if (!is.null(r_script) & !is.null(r_code)) {
+        cli_abort(
+          "{.code r_script} and {.code r_code} are mutually exclusive!"
+        )
+      } else {
+        if (!is.null(r_script)) {
+          cloned$r_script <- r_script
+        } else {
+          cloned$r_code <- r_code
         }
-        if (!is.null(out$r_script)) cloned$r_script <- out$r_script
       }
+
       if (!is.null(job_name)) {
         assert_string(job_name)
         cloned$job_name <- as.character(job_name)

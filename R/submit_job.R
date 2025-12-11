@@ -28,16 +28,19 @@
 #'    (For local jobs) The number of seconds to wait
 #'    before rechecking job status. Default: 60
 #'    }
+#'    \item{\code{max_wait}}{
+#'    How long to wait on the job before giving up, in seconds.
+#'    Default: 24 hours (86,400 seconds)}
 #' }
 #'
+#' @param input A path to a script that should be executed by the scheduler or a
+#' single command to be run. In the case of conflicts, the directives passed with
+#' \code{sched_args} will take precedence. Required.
 #' @param scheduler Which scheduler to use for job submission. Options are 'qsub',
 #' 'torque', 'sbatch', 'slurm', 'sh', or 'local'. The terms 'qsub' and 'torque'
 #' are aliases (where 'torque' submits via the qsub command). Likewise for 'sbatch'
 #' and 'slurm'. The scheduler 'sh' (alias, 'local') does not submit to any scheduler
 #' at all, but instead executes the command immediately via sh. Default: 'slurm'
-#' @param input A path to a script that should be executed by the scheduler or a
-#' single command to be run. In the case of conflicts, the directives passed with
-#' \code{sched_args} will take precedence. Required.
 #' @param is_script Logical. If \code{TRUE}, assumes \code{input} is a script. If
 #' false, assumes \code{input} is a single command. If NULL, the function will
 #' internally determine what the input is. Default: \code{TRUE}
@@ -65,7 +68,6 @@
 #' assert_file_exists assert_character assert_list assert_integerish
 #' @importFrom glue glue
 #' @importFrom methods formalArgs
-#' @importFrom purrr partial
 #'
 #' @examples
 #' \dontrun{
@@ -74,8 +76,8 @@
 #' @author Michael Hallquist, Zach Vig
 #' @export
 submit_job <- function(
-    scheduler = "slurm",
     input,
+    scheduler = "slurm",
     is_script = TRUE,
     echo = TRUE,
     fail_on_error = FALSE,
@@ -86,7 +88,13 @@ submit_job <- function(
   assert_string(scheduler)
   scheduler <- tolower(scheduler) # ignore case
   assert_subset(scheduler, c("qsub", "torque", "sbatch", "slurm", "sh", "local"))
-  fn <- glue("submit_job_{scheduler}_int")
+  scheduler <- switch(scheduler,
+    "sbatch" = "slurm",
+    "qsub" = "torque",
+    "sh" = "local",
+    scheduler
+  )
+  fn <- glue(".submit_job_{scheduler}_int")
   if (missing(input)) {
     cli_abort(
       "Argument {.code input} is required"
@@ -109,6 +117,9 @@ submit_job <- function(
     assert_character(wait_jobs)
   }
   assert_list(control)
+  if (length(control) > 0) {
+    control[sapply(control, is.null)] <- NULL
+  }
   unknown_args <- setdiff(names(control), formalArgs(fn))
   if (length(unknown_args) > 0) {
     cli_warn(
@@ -136,7 +147,7 @@ submit_job <- function(
 
 #' Internal function for submitting jobs to slurm
 #' @noRd
-submit_job_slurm_int <- function(
+.submit_job_slurm_int <- function(
     input = NULL,
     is_script = TRUE,
     echo = TRUE,
@@ -182,7 +193,7 @@ submit_job_slurm_int <- function(
 
 #' Internal function for submitting jobs to torque
 #' @noRd
-submit_job_torque_int <- function(
+.submit_job_torque_int <- function(
     input = NULL,
     is_script = TRUE,
     echo = TRUE,
@@ -228,7 +239,7 @@ submit_job_torque_int <- function(
 
 #' Internal function for submitting jobs locally
 #' @noRd
-submit_job_local_int <- function(
+.submit_job_local_int <- function(
     input = NULL,
     is_script = TRUE,
     echo = TRUE,
@@ -236,19 +247,24 @@ submit_job_local_int <- function(
     wait_jobs = NULL,
     env_variables = NULL,
     repolling_interval = 60,
+    max_wait = 60 * 60 * 24,
     # tracking_db = NULL,
     # tracking_args = NULL,
     ...
   ) {
   if (!is.null(repolling_interval)) {
-    assert_integerish(repolling_interval, null.ok = TRUE)
+    assert_number(repolling_interval, lower = 0.1, upper = 2e5)
+  } else {
+    cli_abort(
+      "{.code repolling_interval} is required for local submission"
+    )
   }
-  if (!is.null(sched_args)) {
-    # cli_warn(
-    #   "Ignoring scheduler arguments for sh/local execution"
-    #   )
-    sched_args <- NULL
+  if (exists("sched_args")) {
+    cli_warn(
+      "Ignoring scheduler arguments for sh/local execution"
+      )
   }
+  sched_args <- NULL
   if (!is.null(env_variables)) {
     env_variables <- paste(sapply(paste_args(env_variables), function(x) {
       ifelse(grepl("=", x, fixed = TRUE), x, paste0(x, "=\"$", x, "\""))
@@ -261,7 +277,8 @@ submit_job_local_int <- function(
       c("Waiting for the following jobs to finish:",
         "{wait_jobs}")
     )
-    wait_for_job(wait_jobs, repolling_interval = repolling_interval, scheduler = "sh")
+    wait_for_job(wait_jobs, repolling_interval = repolling_interval,
+                 max_wait = max_wait, scheduler = "sh")
   }
   # if an R script file is provided, execute with Rscript --vanilla
   if (grepl(".+\\.R$", input, ignore.case = TRUE)) {

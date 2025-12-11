@@ -1,19 +1,19 @@
 #' Query job status by ID or user
 #'
-#' `get_job_status` returns a data frame with requested job information including status.
-#'  Also available are scheduler-specific submit functions of the form `get_job_status_<scheduler>`
+#' `check_job_status` returns a data frame with requested job information including status.
+#'  Also available are scheduler-specific submit functions of the form `check_job_status_<scheduler>`
 #'  where `<scheduler>` can be `slurm` or `sbatch` (aliases), `torque` or `qsub`
 #'  (aliases), or `local` or `sh` (aliases).
 #'
 #' @details {
-#' `get_job_status` is useful for checking the status of local jobs launched via
+#' `check_job_status` is useful for checking the status of local jobs launched via
 #' background processes or system calls, particularly in scripting or pipeline
 #' execution.
 #'
-#' `get_job_status(scheduler = "slurm")` submits via `sacct`.
-#' `get_job_status(scheduler = "torque")` submits via `qselect`.
+#' `check_job_status(scheduler = "slurm")` submits via `sacct`.
+#' `check_job_status(scheduler = "torque")` submits via `qselect`.
 #'
-#' \code{get_job_status(scheduler = "local")} is platform-dependent and intended
+#' \code{check_job_status(scheduler = "local")} is platform-dependent and intended
 #' for UNIX-like systems, submiting via `ps`. If a PID does not appear in the `ps`
 #' output, it is assumed to have completed and its `STAT` value will be set to
 #' `"C"`. For running or sleeping processes, `STAT` reflects the current process
@@ -56,17 +56,16 @@
 #' @importFrom data.table fread setnames
 #' @importFrom glue glue
 #' @importFrom utils type.convert
-#' @importFrom purrr partial
 #'
 #' @examples
 #' \dontrun{
-#'   get_job_status(scheduler = "slurm", job_ids = "16346781")}
+#'   check_job_status(scheduler = "slurm", job_ids = "16346781")}
 #' @author Michael Hallquist, Zach Vig
 #' @export
-get_job_status <- function(
-    scheduler = "slurm",
+check_job_status <- function(
     job_ids = NULL,
     user = NULL,
+    scheduler = "slurm",
     standardize = TRUE,
     control = list()
     ) {
@@ -78,7 +77,13 @@ get_job_status <- function(
   assert_string(scheduler)
   scheduler <- tolower(scheduler) # ignore case
   assert_subset(scheduler, c("qsub", "torque", "sbatch", "slurm", "sh", "local"))
-  fn <- glue("get_job_status_{scheduler}_int")
+  scheduler <- switch(scheduler,
+                      "sbatch" = "slurm",
+                      "qsub" = "torque",
+                      "sh" = "local",
+                      scheduler
+  )
+  fn <- glue(".check_job_status_{scheduler}_int")
   assert_flag(standardize)
   unknown_args <- setdiff(names(control), formalArgs(fn))
   if (length(unknown_args) > 0) {
@@ -97,7 +102,7 @@ get_job_status <- function(
 
 #' Internal function for getting slurm job status
 #' @noRd
-get_job_status_slurm_int <- function(
+.check_job_status_slurm_int <- function(
     job_ids = NULL,
     user = NULL,
     standardize = TRUE,
@@ -157,7 +162,7 @@ get_job_status_slurm_int <- function(
 
 #' Internal function for getting TORQUE job stats
 #' @noRd
-get_job_status_torque_int <- function(
+.check_job_status_torque_int <- function(
     job_ids = NULL,
     user = NULL,
     standardize = TRUE,
@@ -226,7 +231,7 @@ get_job_status_torque_int <- function(
 
 #' Internal function for getting local job status
 #' @noRd
-get_job_status_local_int <- function(
+.check_job_status_local_int <- function(
     job_ids = NULL,
     user = NULL,
     standardize = TRUE,
@@ -293,7 +298,7 @@ get_job_status_local_int <- function(
 
 #' Get standardized status vector from status table
 #'
-#' `get_standard_status` takes a status table from `get_job_status` and
+#' `get_standard_status` takes a status table from `check_job_status` and
 #' returns a standardized status as a vector for `wait_for_job`
 #' @noRd
 get_standard_status <- function(status_table, scheduler) {
@@ -340,33 +345,33 @@ get_standard_status <- function(status_table, scheduler) {
 
 
 #' Aliases for slurm
-#' @rdname get_job_status
+#' @rdname check_job_status
 #' @export
-get_job_status_sbatch <- get_job_status
-#' @rdname get_job_status
+check_job_status_sbatch <- check_job_status
+#' @rdname check_job_status
 #' @export
-get_job_status_slurm <- get_job_status
+check_job_status_slurm <- check_job_status
 
-formals(get_job_status_sbatch)$scheduler <- formals(get_job_status_slurm)$scheduler <- "slurm"
+formals(check_job_status_sbatch)$scheduler <- formals(check_job_status_slurm)$scheduler <- "slurm"
 
 
 #' Aliases for torque
-#' @rdname get_job_status
+#' @rdname check_job_status
 #' @export
-get_job_status_qsub <- get_job_status
-#' @rdname get_job_status
+check_job_status_qsub <- check_job_status
+#' @rdname check_job_status
 #' @export
-get_job_status_torque <- get_job_status
+check_job_status_torque <- check_job_status
 
-formals(get_job_status_qsub)$scheduler <- formals(get_job_status_torque)$scheduler <- "torque"
+formals(check_job_status_qsub)$scheduler <- formals(check_job_status_torque)$scheduler <- "torque"
 
 #' Aliases for local
-#' @rdname get_job_status
+#' @rdname check_job_status
 #' @export
-get_job_status_sh <- get_job_status
-#' @rdname get_job_status
+check_job_status_sh <- check_job_status
+#' @rdname check_job_status
 #' @export
-get_job_status_local <- get_job_status
+check_job_status_local <- check_job_status
 
-formals(get_job_status_sh)$scheduler <- formals(get_job_status_local)$scheduler <- "local"
+formals(check_job_status_sh)$scheduler <- formals(check_job_status_local)$scheduler <- "local"
 

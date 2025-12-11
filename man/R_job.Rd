@@ -26,13 +26,6 @@ dependencies and informative job status queries on a job scheduler}
 \item{\code{job_dir}}{Location of "home" directory for this job. Needs to be somewhere
 that both compute nodes and login nodes can access, so /tmp is not suggested.}
 
-\item{\code{r_code}}{The R code to be executed by this job. This can be a character
-vector that includes multiple R statements or an expression object containing
-the R code to be evaluated}
-
-\item{\code{r_script}}{The path to the R script to be executed. This may be specified
-by the user or written by the R_job object in the case it is not provided.}
-
 \item{\code{scheduler}}{The job scheduler to be used for this batch. Options are:
 "slurm"/"sbatch", "torque"/"qsub", or "local"/"sh".}
 
@@ -57,10 +50,10 @@ run and how to identify them, e.g., "1-10".}
 and influence its execution}
 
 \item{\code{wait_for_subs}}{If TRUE, code will be inserted to wait for all jobs
-in a vector called \code{sub_job_ids} to finish before the batch exits.
+in a vector called \code{SUB_JOB_IDS} to finish before the batch exits.
 It's up to your code to use this variable name}
 
-\item{\code{all_subs_success}}{If TRUE, all jobs in vector \code{sub_job_ids}
+\item{\code{all_subs_success}}{If TRUE, all jobs in vector \code{SUB_JOB_IDS}
 must be successful for this job to finish (see \code{wait_for_subs} field)}
 
 \item{\code{sqlite_db}}{File path to job tracking SQLite database}
@@ -86,17 +79,19 @@ local objects needed to begin computation.}
 the R code to be run. This can include module load statements, environment
 variable exports, etc.}
 
-\item{\code{post_subs_r_code}}{The R code to be executed after sub jobs have completed.
-This can be a character vector that includes multiple R statements or an
-expression object containing the R code to be evaluated. Only relevant if
-wait_for_subs = TRUE}
-
 \item{\code{output_rdata_file}}{The name of the environment to be saved at the
 end of the R batch execution, which can then be loaded by subsequent jobs.}
 
-\item{\code{repolling_interval}}{The number of seconds to wait between successive
-checks on whether parent jobs have completed. This is mostly relevant to
-the 'local' scheduler.}
+\item{\code{control.submit_job}}{A named list with control variables used by
+\code{wait_for_job} when waiting for parent jobs to finish. Arguments include
+\code{repolling_interval}, which is the number of seconds to wait between
+successive checks on whether parent jobs have completed, and \code{max_wait}
+which is the maximum number of seconds to wait for parent jobs to finish
+before ending execution.}
+
+\item{\code{control.wait_for_subs}}{A named list with control variables used by
+\code{wait_for_job} when waiting for sub jobs to finish before this job
+continues. See \code{control.submit_job} for details.}
 
 \item{\code{print_session_info}}{If TRUE, print the `sessionInfo()` and `Sys.info()`
 when the job starts. Useful for debugging problems with the compute
@@ -105,6 +100,28 @@ environment or R installation.}
 \item{\code{print_environment}}{If `TRUE`, print the `Sys.getenv()` when the job
 starts. This can produce a lot of output, but can be useful if certain
 environment variables are not being found when your job runs, leading it to fail.}
+}
+\if{html}{\out{</div>}}
+}
+\section{Active bindings}{
+\if{html}{\out{<div class="r6-active-bindings">}}
+\describe{
+\item{\code{r_script}}{The R code to be executed by this job. This can be a character
+vector that includes multiple R statements or an expression object containing
+the R code to be evaluated}
+
+\item{\code{r_code}}{The R code to be executed by this job. This can be a character
+vector that includes multiple R statements or an expression object containing
+the R code to be evaluated. (Mutually exclusive with \code{r_script})}
+
+\item{\code{post_subs_r_script}}{The path to an R script to be executed by the batch after
+all sub jobs complete Only relevant if \code{wait_for_subs = TRUE}. (Mutually
+exclusive with \code{post_subs_r_code}).}
+
+\item{\code{post_subs_r_code}}{The R code to be executed by the batch after all sub jobs
+complete. This can be a character vector that includes multiple R statements
+or an expression object containing the R code to be evaluated. Only relevant
+if \code{wait_for_subs = TRUE}. (Mutually exclusive with \code{post_subs_r_script})}
 }
 \if{html}{\out{</div>}}
 }
@@ -125,7 +142,8 @@ environment variables are not being found when your job runs, leading it to fail
 Create a new R_job object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{R_job$new(
-  r_input = NULL,
+  r_script = NULL,
+  r_code = NULL,
   job_name = NULL,
   job_dir = NULL,
   scheduler = NULL,
@@ -138,15 +156,17 @@ Create a new R_job object
   parent_jobs = NULL,
   wait_for_subs = FALSE,
   all_subs_success = FALSE,
+  post_subs_r_script = NULL,
+  post_subs_r_code = NULL,
   sqlite_db = NULL,
   scheduler_options = NULL,
   r_packages = NULL,
   input_rdata_file = NULL,
   input_objects = NULL,
   shell_code = NULL,
-  post_subs_r_code = NULL,
   output_rdata_file = NULL,
-  repolling_interval = NULL,
+  control.submit_job = NULL,
+  control.wait_for_subs = NULL,
   print_session_info = TRUE,
   print_environment = FALSE
 )}\if{html}{\out{</div>}}
@@ -155,8 +175,11 @@ Create a new R_job object
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{r_input}}{A character vector or expression containing R code to be executed,
-or a path to an R script to be executed.}
+\item{\code{r_script}}{The path to an R script to be executed by the batch.
+(Mutually exclusive with \code{r_code})}
+
+\item{\code{r_code}}{A character vector or expression containing R code to be executed.
+(Mutually exclusive with \code{r_script})}
 
 \item{\code{job_name}}{A character string. The name of the job used in dependency
 specification and job scheduler naming.}
@@ -193,10 +216,19 @@ The job array number will be made available to your R script as \code{ARRAY_ID}}
 that are parents of this job.}
 
 \item{\code{wait_for_subs}}{Logical. If \code{TRUE}, do not end this job until all
-sub-jobs have completed. Default: \code{FALSE}}
+sub-jobs have completed. Assign sub-job ids to \code{SUB_JOB_IDS} in your
+code. Default: \code{FALSE}}
 
 \item{\code{all_subs_success}}{If \code{TRUE}, don't count this job as successful
 unless all sub-jobs are successful. Default: \code{FALSE}}
+
+\item{\code{post_subs_r_script}}{The path to an R script to be executed by the batch
+after sub jobs have completed. Only relevant if \code{wait_for_subs = TRUE}
+(Mutually exclusive with \code{post_subs_r_code})}
+
+\item{\code{post_subs_r_code}}{A character vector or expression containing R code to be
+executed after sub jobs have completed. Only relevant if \code{wait_for_subs = TRUE}
+(Mutually exclusive with \code{post_subs_r_script})}
 
 \item{\code{sqlite_db}}{A character string. The location of the SQLite database
 to be used for job tracking. If `NULL`, job tracking will be disabled.
@@ -218,14 +250,18 @@ with input_rdata_file at present.}
 \item{\code{shell_code}}{A character vector of shell code to be included in the batch
 script that submits the job}
 
-\item{\code{post_subs_r_code}}{A character vector or expression containing R code
-to be executed after waiting for sub jobs to finish.}
-
 \item{\code{output_rdata_file}}{The name of the environment to be saved at the
 end of the R batch execution}
 
-\item{\code{repolling_interval}}{A number The number of seconds to wait before
-rechecking whether parent jobs have completed}
+\item{\code{control.submit_job}}{A named list with control variables used by
+\code{submit_job} when submitting this job, e.g., \code{repolling_interval},
+\code{max_wait}, and \code{wait_signal}. This argument defaults when
+\code{scheduler = "local"}. For expert use only.}
+
+\item{\code{control.wait_for_subs}}{A named list with control variables used by
+\code{wait_for_job} when waiting for sub jobs to finish. Arguments include
+\code{repolling_interval} and \code{max_wait}. This argument defaults when
+\code{wait_for_subs = TRUE}. For expert use only.}
 
 \item{\code{print_session_info}}{Logical. If \code{TRUE}, print information about
 the R environment `sessionInfo()` and compute environment `Sys.info()` when
@@ -259,7 +295,8 @@ Submit job to scheduler or local compute
 Create a deep copy of a batch job with minor changes
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{R_job$copy(
-  r_input = NULL,
+  r_script = NULL,
+  r_code = NULL,
   job_name = NULL,
   n_nodes = NULL,
   n_cores = NULL,
@@ -272,8 +309,11 @@ Create a deep copy of a batch job with minor changes
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{r_input}}{A character vector or expression containing R code to be executed,
-or a path to an R script to be executed.}
+\item{\code{r_script}}{The path to an R script to be executed by the batch.
+(Mutually exclusive with \code{r_code})}
+
+\item{\code{r_code}}{A character vector or expression containing R code to be executed.
+(Mutually exclusive with \code{r_script})}
 
 \item{\code{job_name}}{The name of the job used in dependency specification and job
 scheduler naming}

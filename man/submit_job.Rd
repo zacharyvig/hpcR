@@ -17,8 +17,8 @@
 \title{Submit a script or command to a high-performance cluster using a scheduler}
 \usage{
 submit_job(
-  scheduler = "slurm",
   input,
+  scheduler = "slurm",
   is_script = TRUE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -28,8 +28,8 @@ submit_job(
 )
 
 submit_cmd(
-  scheduler = "slurm",
   input,
+  scheduler = "slurm",
   is_script = FALSE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -39,8 +39,8 @@ submit_cmd(
 )
 
 submit_job_sbatch(
-  scheduler = "slurm",
   input,
+  scheduler = "slurm",
   is_script = TRUE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -50,8 +50,8 @@ submit_job_sbatch(
 )
 
 submit_job_slurm(
-  scheduler = "slurm",
   input,
+  scheduler = "slurm",
   is_script = TRUE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -61,8 +61,8 @@ submit_job_slurm(
 )
 
 submit_cmd_sbatch(
-  scheduler = "slurm",
   input,
+  scheduler = "slurm",
   is_script = FALSE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -72,8 +72,8 @@ submit_cmd_sbatch(
 )
 
 submit_cmd_slurm(
-  scheduler = "slurm",
   input,
+  scheduler = "slurm",
   is_script = FALSE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -83,8 +83,8 @@ submit_cmd_slurm(
 )
 
 submit_job_qsub(
-  scheduler = "torque",
   input,
+  scheduler = "torque",
   is_script = TRUE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -94,8 +94,8 @@ submit_job_qsub(
 )
 
 submit_job_torque(
-  scheduler = "torque",
   input,
+  scheduler = "torque",
   is_script = TRUE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -105,8 +105,8 @@ submit_job_torque(
 )
 
 submit_cmd_qsub(
-  scheduler = "torque",
   input,
+  scheduler = "torque",
   is_script = FALSE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -116,8 +116,8 @@ submit_cmd_qsub(
 )
 
 submit_cmd_torque(
-  scheduler = "torque",
   input,
+  scheduler = "torque",
   is_script = FALSE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -127,8 +127,8 @@ submit_cmd_torque(
 )
 
 submit_job_sh(
-  scheduler = "local",
   input,
+  scheduler = "local",
   is_script = TRUE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -138,8 +138,8 @@ submit_job_sh(
 )
 
 submit_cmd_sh(
-  scheduler = "local",
   input,
+  scheduler = "local",
   is_script = FALSE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -149,8 +149,8 @@ submit_cmd_sh(
 )
 
 submit_cmd_local(
-  scheduler = "local",
   input,
+  scheduler = "local",
   is_script = FALSE,
   echo = TRUE,
   fail_on_error = FALSE,
@@ -160,15 +160,15 @@ submit_cmd_local(
 )
 }
 \arguments{
+\item{input}{A path to a script that should be executed by the scheduler or a
+single command to be run. In the case of conflicts, the directives passed with
+\code{sched_args} will take precedence. Required.}
+
 \item{scheduler}{Which scheduler to use for job submission. Options are 'qsub',
 'torque', 'sbatch', 'slurm', 'sh', or 'local'. The terms 'qsub' and 'torque'
 are aliases (where 'torque' submits via the qsub command). Likewise for 'sbatch'
 and 'slurm'. The scheduler 'sh' (alias, 'local') does not submit to any scheduler
 at all, but instead executes the command immediately via sh. Default: 'slurm'}
-
-\item{input}{A path to a script that should be executed by the scheduler or a
-single command to be run. In the case of conflicts, the directives passed with
-\code{sched_args} will take precedence. Required.}
 
 \item{is_script}{Logical. If \code{TRUE}, assumes \code{input} is a script. If
 false, assumes \code{input} is a single command. If NULL, the function will
@@ -228,6 +228,9 @@ as a named list:
    (For local jobs) The number of seconds to wait
    before rechecking job status. Default: 60
    }
+   \item{\code{max_wait}}{
+   How long to wait on the job before giving up, in seconds.
+   Default: 24 hours (86,400 seconds)}
 }
 }
 \examples{

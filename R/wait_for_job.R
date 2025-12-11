@@ -59,7 +59,7 @@ wait_for_job <- function(
   ret_code <- NULL # should be set to TRUE if all jobs complete and FALSE if any job fails
 
   while (isFALSE(job_complete)) {
-    status_table <- get_job_status(job_ids, scheduler)
+    status_table <- check_job_status(job_ids, scheduler)
     status <- get_standard_status(status_table, scheduler)
     # update wait time
     wait_total <- as.numeric(difftime(Sys.time(), wait_start, units = "secs"))
