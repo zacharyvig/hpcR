@@ -114,7 +114,7 @@ resources <- function(
 scheduler <- function(scheduler_name = NULL) {
   input <- list(
     scheduler_name = as.character(
-      .standardize_scheduler_name(scheduler_name)
+      .standardize_scheduler_name(scheduler_name, strict = FALSE)
     )
   )
   class_job_update(updates = list(scheduler = input))

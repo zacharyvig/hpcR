@@ -142,7 +142,7 @@ class_job <- S7::new_class(
 #' @description The \code{class_job_update} class is the basis of all update
 #' objects in \pkg{hpcR}. These objects are used to update job
 #' objects when using the \code{+} operator. Job updates are lightweight
-#' and usually store a few properties, or a single \link{PropertyBlock}.
+#' and usually store a few properties, or a single \link{class_property_block}.
 #' @name class_job_update
 
 #' @keywords internal

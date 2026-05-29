@@ -141,7 +141,7 @@ NULL
 #' @method update hpcR::class_job
 #' @export
 `update.hpcR::class_job` <- function(e1, e2) {
-  if (!is_update(e2)) {
+  if (!is_job_update(e2)) {
     cli::cli_abort(
       paste("The right-hand side of {.fn update}",
             "must be a valid job property statement"),
