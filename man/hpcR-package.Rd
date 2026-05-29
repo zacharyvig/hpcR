@@ -6,7 +6,7 @@
 \alias{hpcR-package}
 \title{hpcR: Submit Jobs to High Performance Computing Clusters}
 \description{
-More about what it does (maybe more than one line). Continuation lines should be indented.
+hpcR provides a simple interface for building jobs to submit to a high-performance cluster (HPC) and tracking them post-submission. For the more advanced user, the package also provides a straightforward but robust system for creating job dependencies/sequences for larger-scale projects.
 }
 \author{
 \strong{Maintainer}: Zach Vig \email{zachvig@unc.edu}

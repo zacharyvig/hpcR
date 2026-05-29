@@ -5,8 +5,11 @@ Version: 0.1.0
 Authors@R: 
     c(person("Zach", "Vig", , "zachvig@unc.edu", role = c("aut", "cre")),
     person("Michael", "Hallquist", role = c("aut")))
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
+Description: hpcR provides a simple interface for building jobs to submit to
+    a high-performance cluster (HPC) and tracking them post-submission. For
+    the more advanced user, the package also provides a straightforward but 
+    robust system for creating job dependencies/sequences for larger-scale
+    projects.
 License: GPL (>= 3)
 Imports: 
     checkmate,
@@ -14,8 +17,13 @@ Imports:
     data.table,
     glue,
     R6,
+    rlang,
+    S7,
     methods,
     utils
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.3
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
