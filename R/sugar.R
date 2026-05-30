@@ -58,12 +58,13 @@ rjob <- function(job_name = NULL) {
   if (!missing(job_name)) {
     j@job_name <- as.character(job_name)
   }
-  script <- class_pb_script(
-    script_path = character(0),
+  input <- class_pb_input(
+    input_type = "script",
+    input_value = character(0),
     extension = "R",
     language = "R"
   ) 
-  j@script <- script
+  j@input <- input
   # lock object before returning
   j@.locked <- TRUE
   return(j)
@@ -73,10 +74,11 @@ rjob <- function(job_name = NULL) {
 #' @export
 # `extension` and `language` are currently hard-coded for language-specific jobs
 script <- function(script_path = NULL) {
-  input <- list(
-    script_path = as.character(script_path)
+  value <- list(
+    input_type = "script",
+    input_value = as.character(script_path)
   )
-  class_job_update(updates = list(script = input))
+  class_job_update(updates = list(input = value))
 }
 
 #' @rdname build_job
@@ -97,14 +99,14 @@ resources <- function(
   n_nodes = NULL, n_cores = NULL, wall_time = NULL, total_memory = NULL,
   memory_per_core = NULL
 ) {
-  input <- list(
+  value <- list(
     n_nodes = as.character(n_nodes),
     n_cores = as.character(n_cores),
     wall_time = as.character(wall_time),
     total_memory = as.character(total_memory),
     memory_per_core = as.character(memory_per_core)
   )
-  class_job_update(updates = list(resources = input))
+  class_job_update(updates = list(resources = value))
 }
 
 
@@ -112,10 +114,10 @@ resources <- function(
 #' @export
 # TODO: add more arguments to this function as needed
 scheduler <- function(scheduler_name = NULL) {
-  input <- list(
+  value <- list(
     scheduler_name = as.character(
       .standardize_scheduler_name(scheduler_name, strict = FALSE)
     )
   )
-  class_job_update(updates = list(scheduler = input))
+  class_job_update(updates = list(scheduler = value))
 }

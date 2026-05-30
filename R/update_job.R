@@ -1,7 +1,14 @@
 #' Internal function to update a Job object and validate properties
-#' @noRd
+#' @param e1 A class_job object to be updated
+#' @param e2 A class_job_update object containing the updates
+#' @param warn_overwrite Whether to warn about overwritten properties
+#' @param .call The calling environment
+#' @param use_default_settings Whether to use default validation settings
+#' 
+#' @keywords internal
 .update_job <- function(e1, e2, warn_overwrite = TRUE,
-                        .call = rlang::caller_env()) {
+                        .call = rlang::caller_env(),
+                        use_default_settings = TRUE) {
   # if class_job_update, extract updates;
   # if not, assume it's a list of properties
   if (is_job_update(e2)) {
@@ -46,7 +53,7 @@
     # always validate properties
     validate_property(
       name = property, value = new_value, .call = .call,
-      use_default_settings = TRUE
+      use_default_settings = use_default_settings
     )
     # rehydrate property block if applicable
     if (is_block_update) {
@@ -127,14 +134,14 @@ NULL
 #' @rdname update_job
 #' @method + hpcR::class_job
 #' @export
-`+.hpcR::class_job` <- function(e1, e2, .call = rlang::caller_env()) {
+`+.hpcR::class_job` <- function(e1, e2) {
   if (!is_job_update(e2)) {
     cli::cli_abort(
       "The right-hand side of {.code +} must be a valid job property statement",
-      call = .call
+      call = rlang::caller_env()
     )
   }
-  .update_job(e1, e2, .call = .call)
+  .update_job(e1, e2, .call = rlang::caller_env(), use_default_settings = TRUE)
 }
 
 #' @rdname update_job
@@ -145,7 +152,8 @@ NULL
     cli::cli_abort(
       paste("The right-hand side of {.fn update}",
             "must be a valid job property statement"),
+      call = rlang::caller_env()
     )
   }
-  .update_job(e1, e2)
+  .update_job(e1, e2, use_default_settings = TRUE)
 }

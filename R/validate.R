@@ -73,65 +73,100 @@ S7::method(validate_property, S7::class_character) <- function(
   if (stage == "update") {
     switch(
       property,
-      script = list(
-        fail_on_invalid = TRUE,
+      input = list(
+        fail_on_invalid = FALSE,
         allow_na = FALSE,
         allow_missing = FALSE
       ),
       job_name = list(
-        fail_on_invalid = FALSE,
+        fail_on_invalid = TRUE,
         allow_na = TRUE,
         allow_missing = TRUE
       ),
       job_directory = list(
-        fail_on_invalid = FALSE,
+        fail_on_invalid = TRUE,
         allow_na = TRUE,
         allow_missing = TRUE
       ),
       resources = list(
-        fail_on_invalid = FALSE,
-        allow_na = TRUE,
-        allow_missing = TRUE
-      ),
-      n_nodes = list(
-        fail_on_invalid = FALSE,
-        allow_na = TRUE,
-        allow_missing = TRUE
-      ),
-      n_cores = list(
-        fail_on_invalid = FALSE,
-        allow_na = TRUE,
-        allow_missing = TRUE
-      ),
-      wall_time = list(
-        fail_on_invalid = FALSE,
-        allow_na = TRUE,
-        allow_missing = TRUE
-      ),
-      total_memory = list(
-        fail_on_invalid = FALSE,
-        allow_na = TRUE,
-        allow_missing = TRUE
-      ),
-      memory_per_core = list(
-        fail_on_invalid = FALSE,
+        fail_on_invalid = TRUE,
         allow_na = TRUE,
         allow_missing = TRUE
       ),
       scheduler = list(
-        fail_on_invalid = FALSE,
+        fail_on_invalid = TRUE,
         allow_na = TRUE,
         allow_missing = TRUE
       ),
       cli::cli_abort("Unknown property: {property}", internal = TRUE)
     )
   } else if (stage == "submit") {
-    cli::cli_abort("Validation on submit not implemented yet", internal = TRUE)
+    switch(
+      property,
+      input = list(
+        fail_on_invalid = TRUE,
+        allow_na = FALSE,
+        allow_missing = FALSE
+      ),
+      job_name = list(
+        fail_on_invalid = TRUE,
+        allow_na = TRUE,
+        allow_missing = TRUE
+      ),
+      job_directory = list(
+        fail_on_invalid = TRUE,
+        allow_na = TRUE,
+        allow_missing = TRUE
+      ),
+      resources = list(
+        fail_on_invalid = TRUE,
+        allow_na = TRUE,
+        allow_missing = TRUE
+      ),
+      scheduler = list(
+        fail_on_invalid = TRUE,
+        allow_na = FALSE,
+        allow_missing = FALSE
+      ),
+      cli::cli_abort("Unknown property: {property}", internal = TRUE)
+    )
   }
 }
 
 .is_missing <- function(x) {
   missing(x) || is.null(x) || !length(x)
+}
+
+#' Internal input validator
+#' @noRd
+.validate_input <- function(
+  value, .call = rlang::caller_env(),
+  settings = .get_validator_defaults("input")
+) {
+  items <- class_pb_input@properties |> names()
+  invalid_fields <- setdiff(names(value), items)
+  if (length(invalid_fields)) {
+    # rare case when working directly with the validate functions directly
+    cli::cli_abort(
+      c("Input has invalid fields:", "{.list {invalid_fields}}"),
+      call = .call
+    )
+    return(invisible())
+  } else {
+    if (value$input_type == "script") {
+      .validate_script(
+        value = value, .call = .call,
+        settings = settings
+      )
+    } else if (value$input_type == "oneliner") {
+      cli::cli_abort("Work in progress: oneliner validation not yet implemented",
+           call = .call, internal = TRUE)
+    } else {
+      cli::cli_abort("Unknown input type: {.code {value$input_type}}",
+                      call = .call, internal = TRUE)
+    }
+      
+  }
 }
 
 #' Internal script validator
@@ -141,27 +176,15 @@ S7::method(validate_property, S7::class_character) <- function(
   settings = .get_validator_defaults("script")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
-  items <- class_pb_script@properties |> names()
-  invalid_fields <- setdiff(names(value), items)
-  if (length(invalid_fields)) {
-    # rare case when working directly with the validate functions directly
-    cli::cli_abort(
-      c("Script has invalid fields:", "{.list {invalid_fields}}"),
-      call = .call
-    )
-    return(invisible())
-  }
-  script_path <- value$script_path
+  script_path <- value$input_value
   if (.is_missing(script_path)) {
     if (settings$allow_missing) return(invisible())
     notify("Script is missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(script_path))) {
     return(invisible())
-  } else if (!is.character(script_path) || length(script_path) > 1) {
-    notify("Script must be a single character string", call = .call)
-  } else if (is.character(script_path) && !nzchar(script_path)) {
-    notify("Script is an empty string", call = .call)
-  } else if (!file.exists(script_path)) {
+  } else if (!checkmate::test_string(script_path, min.chars = 1)) {
+    notify("Script must be a single, non-empty character string", call = .call)
+  } else if (!checkmate::test_file_exists(script_path)) {
     msg <- "Script file does not exist: {.code {script_path}}"
     if (!settings$fail_on_invalid) {
       msg <- c(msg, "i" = "Did you supply the full path?")
@@ -180,6 +203,16 @@ S7::method(validate_property, S7::class_character) <- function(
   }
 }
 
+#' Internal oneliner validator
+#' @noRd
+.validate_oneliner <- function(
+  value, .call = rlang::caller_env(),
+  settings = .get_validator_defaults("oneliner")
+) {
+  stop("Work in progress: oneliner validation not yet implemented",
+       call. = FALSE)
+}
+
 #' Internal job name validator
 #' @noRd
 .validate_job_name <- function(
@@ -195,10 +228,9 @@ S7::method(validate_property, S7::class_character) <- function(
     return(invisible())
   } else if (settings$allow_na && isTRUE(is.na(value))) {
     return(invisible())
-  } else if (!is.character(value) || length(value) > 1) {
-    notify("Job name must be a single character string", call = .call)
-  } else if (is.character(value) && !nzchar(value)) {
-    notify("Job name is an empty string", call = .call)
+  } else if (!checkmate::test_string(value, min.chars = 1)) {
+    notify("Job name must be a single, non-empty character string",
+           call = .call)
   } else if (nchar(value) > 15) {
     cli::cli_warn(
       "Job name may be too long for some schedulers: {.code {value}}",
@@ -220,11 +252,10 @@ S7::method(validate_property, S7::class_character) <- function(
     return(invisible())
   } else if (settings$allow_na && isTRUE(is.na(value))) {
     return(invisible())
-  } else if (!is.character(value) || length(value) > 1) {
-    notify("Job directory must be a single character string", call = .call)
-  } else if (!nzchar(value)) {
-    notify("Job directory is an empty string", call = .call)
-  } else if (!dir.exists(value)) {
+  } else if (!checkmate::test_string(value, min.chars = 1)) {
+    notify("Job directory must be a single, non-empty character string",
+           call = .call)
+  } else if (!checkmate::test_directory_exists(value)) {
     msg <- "Job directory does not exist: {.code {value}}"
     if (settings$fail_on_invalid) {
       msg <- c(msg, "Make sure it exists before submitting the job")
@@ -256,7 +287,7 @@ S7::method(validate_property, S7::class_character) <- function(
   } else {
     for (item in names(value)) {
       fn <- get(paste0(".validate_", item), mode = "function", inherits = TRUE)
-      fn(value[[item]], .call = .call, settings = .get_validator_defaults(item))
+      fn(value[[item]], .call = .call, settings = settings)
     }
   }
 }
@@ -265,7 +296,7 @@ S7::method(validate_property, S7::class_character) <- function(
 #' @noRd
 .validate_n_nodes <- function(
   value, .call = rlang::caller_env(),
-  settings = .get_validator_defaults("n_nodes")
+  settings = .get_validator_defaults("resources")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
@@ -289,7 +320,7 @@ S7::method(validate_property, S7::class_character) <- function(
 #' @noRd
 .validate_n_cores <- function(
   value, .call = rlang::caller_env(),
-  settings = .get_validator_defaults("n_cores")
+  settings = .get_validator_defaults("resources")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
@@ -313,7 +344,7 @@ S7::method(validate_property, S7::class_character) <- function(
 #' @noRd
 .validate_wall_time <- function(
   value, .call = rlang::caller_env(),
-  settings = .get_validator_defaults("wall_time")
+  settings = .get_validator_defaults("resources")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
@@ -341,7 +372,7 @@ S7::method(validate_property, S7::class_character) <- function(
 #' @noRd
 .validate_total_memory <- function(
   value, .call = rlang::caller_env(),
-  settings = .get_validator_defaults("total_memory")
+  settings = .get_validator_defaults("resources")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
@@ -368,7 +399,7 @@ S7::method(validate_property, S7::class_character) <- function(
 #' @noRd
 .validate_memory_per_core <- function(
   value, .call = rlang::caller_env(),
-  settings = .get_validator_defaults("memory_per_core")
+  settings = .get_validator_defaults("resources")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
@@ -414,10 +445,9 @@ S7::method(validate_property, S7::class_character) <- function(
     notify("Scheduler name is missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(scheduler_name))) {
     return(invisible())
-  } else if (!is.character(scheduler_name) || length(scheduler_name) > 1) {
-    notify("Scheduler name must be a single character string", call = .call)
-  } else if (is.character(scheduler_name) && !nzchar(scheduler_name)) {
-    notify("Scheduler name is an empty string", call = .call)
+  } else if (!checkmate::test_string(scheduler_name, min.chars = 1)) {
+    notify("Scheduler name must be a single, non-empty character string",
+           call = .call)
   } else if (!scheduler_name %in% .get_valid_schedulers()) {
     notify("Scheduler name invalid or currently not supported", call = .call)
   }

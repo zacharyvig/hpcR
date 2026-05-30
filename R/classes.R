@@ -37,10 +37,10 @@
 #'      resource-related job properties, such as number of nodes,
 #'      number of cores, wall time, and memory.
 #'    }
-#'    \item{\code{\link{class_pb_script}}}{
+#'    \item{\code{\link{class_pb_input}}}{
 #'      Subclass of \code{class_property_block} for storing
-#'      script-related job properties, such as script path,
-#'      extension, and language.
+#'      input-related job properties, such as script path,
+#'      extension, and language, or command for oneliner jobs.
 #'    }
 #' }
 #'
@@ -53,15 +53,15 @@
 #' formal \code{class_property_block} class. Property blocks are themselves
 #' collections of properties, e.g., \code{class_property_block@property}, but
 #' they make it easier to do validation on properties that interact (e.g.,
-#' mutually exclusive properties). \code{PropertyBlock} is an abstract class,
-#' thus it's purpose is for specific sub-classes to inherit it.
+#' mutually exclusive properties). \code{class_property_block} is an abstract
+#' class, thus it's purpose is for specific sub-classes to inherit it.
 #'
 #' @name hpcR_classes
 #' @keywords internal
 NULL
 
 #' @title  Class for storing related groups of job properties
-#' @description The \code{PropertyBlock} class is an abstract
+#' @description The \code{class_property_block} class is an abstract
 #' class for all property blocks in \pkg{hpcR}. Property
 #' blocks are collections of related job properties, such as
 #' resource specifications. These classes are intended to help
@@ -86,11 +86,12 @@ class_pb_resources <- S7::new_class(
 
 #' @rdname class_property_block
 #' @keywords internal
-class_pb_script <- S7::new_class(
-  "class_pb_script",
+class_pb_input <- S7::new_class(
+  "class_pb_input",
   parent = class_property_block,
   properties = list(
-    script_path = S7::class_character,
+    input_type = S7::class_character,
+    input_value = S7::class_character,
     extension = S7::class_character,
     language = S7::class_character
   )
@@ -128,7 +129,7 @@ class_job <- S7::new_class(
   properties = list(
     job_name = guarded("job_name", S7::class_character),
     scheduler = guarded("scheduler", class_pb_scheduler),
-    script = guarded("script", class_pb_script),
+    input = guarded("input", class_pb_input),
     job_directory = guarded("job_directory", S7::class_character),
     resources = guarded("resources", class_pb_resources),
     .locked = S7::new_property(

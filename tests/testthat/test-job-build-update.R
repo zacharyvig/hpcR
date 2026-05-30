@@ -34,13 +34,13 @@ test_that("validation warns on invalid resource values", {
 
   job <- rjob("test") + script(tmp_script)
 
-  expect_warning(
+  expect_error(
     job + resources(wall_time = "not-a-time"),
     "Wall time",
     fixed = TRUE
   )
 
-  expect_warning(
+  expect_error(
     job + resources(total_memory = 10, memory_per_core = 2),
     "mutually exclusive",
     fixed = TRUE
@@ -48,7 +48,7 @@ test_that("validation warns on invalid resource values", {
 })
 
 test_that("validation warns on invalid scheduler name", {
-  expect_warning(
+  expect_error(
     rjob("test") + scheduler("unknown_scheduler"),
     "invalid or currently not supported",
     fixed = TRUE

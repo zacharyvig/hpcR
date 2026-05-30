@@ -16,7 +16,6 @@ Imports:
     cli,
     data.table,
     glue,
-    R6,
     rlang,
     S7,
     methods,
