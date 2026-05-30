@@ -8,7 +8,7 @@
 class_job(
   job_name = character(0),
   scheduler = class_pb_scheduler(),
-  script = class_pb_script(),
+  input = class_pb_input(),
   job_directory = character(0),
   resources = class_pb_resources(),
   .locked = FALSE

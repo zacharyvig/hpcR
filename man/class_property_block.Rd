@@ -3,7 +3,7 @@
 \name{class_property_block}
 \alias{class_property_block}
 \alias{class_pb_resources}
-\alias{class_pb_script}
+\alias{class_pb_input}
 \alias{class_pb_scheduler}
 \alias{is_property_block}
 \title{Class for storing related groups of job properties}
@@ -18,8 +18,9 @@ class_pb_resources(
   memory_per_core = character(0)
 )
 
-class_pb_script(
-  script_path = character(0),
+class_pb_input(
+  input_type = character(0),
+  input_value = character(0),
   extension = character(0),
   language = character(0)
 )
@@ -29,7 +30,7 @@ class_pb_scheduler(scheduler_name = character(0))
 is_property_block(x, type = NULL)
 }
 \description{
-The \code{PropertyBlock} class is an abstract
+The \code{class_property_block} class is an abstract
 class for all property blocks in \pkg{hpcR}. Property
 blocks are collections of related job properties, such as
 resource specifications. These classes are intended to help

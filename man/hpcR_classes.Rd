@@ -46,10 +46,10 @@ a collection of S7 subclasses. These include:
      resource-related job properties, such as number of nodes,
      number of cores, wall time, and memory.
    }
-   \item{\code{\link{class_pb_script}}}{
+   \item{\code{\link{class_pb_input}}}{
      Subclass of \code{class_property_block} for storing
-     script-related job properties, such as script path,
-     extension, and language.
+     input-related job properties, such as script path,
+     extension, and language, or command for oneliner jobs.
    }
 }
 }
@@ -64,8 +64,8 @@ directly in the job object, e.g., \code{class_job@property}, or in the more
 formal \code{class_property_block} class. Property blocks are themselves
 collections of properties, e.g., \code{class_property_block@property}, but
 they make it easier to do validation on properties that interact (e.g.,
-mutually exclusive properties). \code{PropertyBlock} is an abstract class,
-thus it's purpose is for specific sub-classes to inherit it.
+mutually exclusive properties). \code{class_property_block} is an abstract
+class, thus it's purpose is for specific sub-classes to inherit it.
 }
 
 \keyword{internal}

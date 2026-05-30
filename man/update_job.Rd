@@ -6,7 +6,7 @@
 \alias{update.hpcR::class_job}
 \title{Incrementally build a job using `+`}
 \usage{
-\method{+}{`hpcR::class_job`}(e1, e2, .call = rlang::caller_env())
+\method{+}{`hpcR::class_job`}(e1, e2)
 
 \method{update}{`hpcR::class_job`}(e1, e2)
 }
