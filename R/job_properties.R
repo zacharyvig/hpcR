@@ -28,8 +28,7 @@ guarded <- function(property, class) {
         )
       }
       if (self@.locked) cli::cli_abort(
-        c("{.code {property}} is locked",
-          "Use {.fn edit} to edit this job")
+        "{.code {property}} is locked"
       )
       S7::prop(self, property) <- value
       self

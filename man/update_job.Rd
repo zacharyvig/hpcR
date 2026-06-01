@@ -13,12 +13,6 @@ update_job(e1, e2, ...)
 \item{e2}{A class_job_update object containing the updates}
 
 \item{...}{Not currently used}
-
-\item{warn_overwrite}{Whether to warn about overwritten properties}
-
-\item{.call}{The calling environment for warning/error messages}
-
-\item{use_default_settings}{Whether to use default validation settings}
 }
 \description{
 Incrementally build a job using `+`

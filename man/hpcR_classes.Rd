@@ -3,74 +3,7 @@
 \docType{class}
 \name{hpcR_classes}
 \alias{hpcR_classes}
-\alias{class_property_block}
-\alias{class_pb_input}
-\alias{class_pb_resources}
-\alias{class_pb_scheduler}
-\alias{class_pb_packages}
-\alias{class_pb_compiled}
-\alias{class_pb_run_settings}
-\alias{class_pb_settings}
-\alias{class_job}
-\alias{class_job_update}
-\alias{is_job}
-\alias{is_job_update}
-\alias{is_property_block}
 \title{Classes for constructing jobs}
-\usage{
-class_property_block()
-
-class_pb_input(
-  input_type = character(0),
-  input_value = character(0),
-  extension = character(0),
-  language = character(0)
-)
-
-class_pb_resources(
-  n_nodes = character(0),
-  n_cores = character(0),
-  wall_time = character(0),
-  total_memory = character(0),
-  memory_per_core = character(0)
-)
-
-class_pb_scheduler(scheduler_name = character(0))
-
-class_pb_packages(
-  package_names = character(0),
-  installation_path = character(0)
-)
-
-class_pb_compiled(
-  env_variables = character(0),
-  scheduler_arguments = character(0)
-)
-
-class_pb_run_settings(print_session_info = FALSE, print_environment = FALSE)
-
-class_pb_settings(run_settings = class_pb_run_settings())
-
-class_job(
-  job_name = character(0),
-  scheduler = class_pb_scheduler(),
-  input = class_pb_input(),
-  job_directory = character(0),
-  resources = class_pb_resources(),
-  packages = class_pb_packages(),
-  .locked = FALSE,
-  .compiled = class_pb_compiled(),
-  .settings = class_pb_settings()
-)
-
-class_job_update(updates)
-
-is_job(x, language = NULL)
-
-is_job_update(x)
-
-is_property_block(x, type = NULL)
-}
 \description{
 \pkg{hpcR} internally uses a suite of S7 classes
 to construct and manage job objects. These allow for strict
@@ -85,7 +18,7 @@ to a high-performance cluster (HPC).
 The \code{class_job_update} class is the basis of all update
 objects in \pkg{hpcR}. These objects are used to update job
 objects when using the \code{+} operator. Job updates are lightweight
-and usually store a few properties, or a single \link{class_property_block}.
+and usually store a few properties, or a single \code{class_property_block}.
 
 The \code{class_property_block} class is an abstract
 class for all property blocks in \pkg{hpcR}. Property
@@ -98,10 +31,9 @@ Job objects are meant to be mostly for internal use, thus they
 are intentionally difficult to edit using the usual S7 approach
 (\code{S7_class@property <- value}). Instead, job objects have a
 \code{.locked} property which, when \code{TRUE}, prevents editing. This
-property is handled by the \code{+} operator approach to job building as
-well as the \link{edit} approach to job editing. This ensures job objects
-can be strictly validating and protects them against the vast majority
-of possible (user) errors.
+property is handled by the \code{+} operator approach to job building.
+This ensures job objects can be strictly validated and protects them against
+the vast majority of possible (user) errors.
 }
 \section{Top-Level S7 Classes}{
 
@@ -110,16 +42,16 @@ Job objects store information about jobs intended to be submitted
 to high-performance clusters (HPCs). The following are top-level
 \link[S7]{S7_class} objects used in constructing, updating, and storing
 properties of job objects.
-\itemize{
-   \item{\code{\link{class_job}}:}{
+\describe{
+   \item{\code{class_job}}{
      Top-level class for all jobs. Basis of the "job object" that
      stores all information needed to submit a job.
    }
-   \item{\code{\link{class_job_update}}:}{
+   \item{\code{class_job_update}}{
      Top-level class for all updates. These are intermediate
      objects used to update job objects when using the \code{+} operator.
    }
-   \item{\code{\link{class_property_block}}:}{
+   \item{\code{class_property_block}}{
      Top-level (abstract) class for all property blocks, which are
      collections of related job properties. These are useful for
      validation and method dispatch.
@@ -133,28 +65,28 @@ properties of job objects.
 For specific job types and property blocks, \pkg{hpcR} uses
 a collection of S7 subclasses. These include:
 
-\itemize{
-   \item{\code{\link{class_pb_input}}}{
+\describe{
+   \item{\code{class_pb_input}}{
      Subclass of \code{class_property_block} for storing
      the main information (script or oneliner) that characterizes
      the job. For script input, it also stores information about
      the script, such as its extension and language.
    }
-   \item{\code{\link{class_pb_resources}}}{
+   \item{\code{class_pb_resources}}{
      Subclass of \code{class_property_block} for storing
      resource-related job properties, such as number of nodes,
      number of cores, wall time, and memory.
    }
-   \item{\code{\link{class_pb_scheduler}}}{
+   \item{\code{class_pb_scheduler}}{
      Subclass of \code{class_property_block} for storing
      scheduler-specific job properties, providing easy
      validation for different schedulers.
    }
-   \item{\code{\link{class_pb_packages}}}{
+   \item{\code{class_pb_packages}}{
      Subclass of \code{class_property_block} for storing
      packages needed for the job to run.
    }
-   \item{\code{\link{class_pb_compiled}}}{
+   \item{\code{class_pb_compiled}}{
     Subclass of \code{class_property_block} for storing compiled information
    about the job to pass to submission.
    }

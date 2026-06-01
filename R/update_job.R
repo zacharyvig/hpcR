@@ -5,10 +5,8 @@
 #'
 #' @param e1 A class_job object to be updated
 #' @param e2 A class_job_update object containing the updates
-#' @param warn_overwrite Whether to warn about overwritten properties
-#' @param .call The calling environment for warning/error messages
-#' @param use_default_settings Whether to use default validation settings
 #' @param ... Not currently used
+#'
 #'
 #' @name update_job
 #' @docType methods
@@ -51,6 +49,10 @@ S7::method(
 
 #' Internal function to update a Job object by adding a class_job_update object
 #' and validate properties
+#' @param warn_overwrite Whether to warn about overwritten properties
+#' @param .call The calling environment for warning/error messages
+#' @param use_default_settings Whether to use default validation settings
+#' 
 #' @noRd
 .update_job <- function(e1, e2, warn_overwrite = TRUE,
                         use_default_settings = TRUE) {

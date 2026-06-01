@@ -12,7 +12,7 @@
 #' The \code{class_job_update} class is the basis of all update
 #' objects in \pkg{hpcR}. These objects are used to update job
 #' objects when using the \code{+} operator. Job updates are lightweight
-#' and usually store a few properties, or a single \link{class_property_block}.
+#' and usually store a few properties, or a single \code{class_property_block}.
 #'
 #' The \code{class_property_block} class is an abstract
 #' class for all property blocks in \pkg{hpcR}. Property
@@ -24,10 +24,9 @@
 #' are intentionally difficult to edit using the usual S7 approach
 #' (\code{S7_class@property <- value}). Instead, job objects have a
 #' \code{.locked} property which, when \code{TRUE}, prevents editing. This
-#' property is handled by the \code{+} operator approach to job building as
-#' well as the \link{edit} approach to job editing. This ensures job objects
-#' can be strictly validating and protects them against the vast majority
-#' of possible (user) errors.
+#' property is handled by the \code{+} operator approach to job building.
+#' This ensures job objects can be strictly validated and protects them against
+#' the vast majority of possible (user) errors.
 #'
 #' @section Top-Level S7 Classes:
 #'
@@ -35,16 +34,16 @@
 #' to high-performance clusters (HPCs). The following are top-level
 #' \link[S7]{S7_class} objects used in constructing, updating, and storing
 #' properties of job objects.
-#' \itemize{
-#'    \item{\code{\link{class_job}}:}{
+#' \describe{
+#'    \item{\code{class_job}}{
 #'      Top-level class for all jobs. Basis of the "job object" that
 #'      stores all information needed to submit a job.
 #'    }
-#'    \item{\code{\link{class_job_update}}:}{
+#'    \item{\code{class_job_update}}{
 #'      Top-level class for all updates. These are intermediate
 #'      objects used to update job objects when using the \code{+} operator.
 #'    }
-#'    \item{\code{\link{class_property_block}}:}{
+#'    \item{\code{class_property_block}}{
 #'      Top-level (abstract) class for all property blocks, which are
 #'      collections of related job properties. These are useful for
 #'      validation and method dispatch.
@@ -55,28 +54,28 @@
 #' For specific job types and property blocks, \pkg{hpcR} uses
 #' a collection of S7 subclasses. These include:
 #'
-#' \itemize{
-#'    \item{\code{\link{class_pb_input}}}{
+#' \describe{
+#'    \item{\code{class_pb_input}}{
 #'      Subclass of \code{class_property_block} for storing
 #'      the main information (script or oneliner) that characterizes
 #'      the job. For script input, it also stores information about
 #'      the script, such as its extension and language.
 #'    }
-#'    \item{\code{\link{class_pb_resources}}}{
+#'    \item{\code{class_pb_resources}}{
 #'      Subclass of \code{class_property_block} for storing
 #'      resource-related job properties, such as number of nodes,
 #'      number of cores, wall time, and memory.
 #'    }
-#'    \item{\code{\link{class_pb_scheduler}}}{
+#'    \item{\code{class_pb_scheduler}}{
 #'      Subclass of \code{class_property_block} for storing
 #'      scheduler-specific job properties, providing easy
 #'      validation for different schedulers.
 #'    }
-#'    \item{\code{\link{class_pb_packages}}}{
+#'    \item{\code{class_pb_packages}}{
 #'      Subclass of \code{class_property_block} for storing
 #'      packages needed for the job to run.
 #'    }
-#'    \item{\code{\link{class_pb_compiled}}}{
+#'    \item{\code{class_pb_compiled}}{
 #'     Subclass of \code{class_property_block} for storing compiled information
 #'    about the job to pass to submission.
 #'    }
@@ -107,12 +106,8 @@
 #' @docType class
 NULL
 
-#' @rdname hpcR_classes
-#' @export
 class_property_block <- S7::new_class("class_property_block", abstract = TRUE)
 
-#' @rdname hpcR_classes
-#' @export
 class_pb_input <- S7::new_class(
   "class_pb_input",
   parent = class_property_block,
@@ -124,8 +119,6 @@ class_pb_input <- S7::new_class(
   )
 )
 
-#' @rdname hpcR_classes
-#' @export
 class_pb_resources <- S7::new_class(
   "class_pb_resources",
   parent = class_property_block,
@@ -138,8 +131,6 @@ class_pb_resources <- S7::new_class(
   )
 )
 
-#' @rdname hpcR_classes
-#' @export
 class_pb_scheduler <- S7::new_class(
   "class_pb_scheduler",
   parent = class_property_block,
@@ -148,8 +139,6 @@ class_pb_scheduler <- S7::new_class(
   )
 )
 
-#' @rdname hpcR_classes
-#' @export
 class_pb_packages <- S7::new_class(
   "class_pb_packages",
   parent = class_property_block,
@@ -159,8 +148,6 @@ class_pb_packages <- S7::new_class(
   )
 )
 
-#' @rdname hpcR_classes
-#' @export
 class_pb_compiled <- S7::new_class(
   "class_pb_compiled",
   parent = class_property_block,
@@ -170,8 +157,6 @@ class_pb_compiled <- S7::new_class(
   )
 )
 
-#' @rdname hpcR_classes
-#' @export
 class_pb_run_settings <- S7::new_class(
   "class_pb_run_settings",
   parent = class_property_block,
@@ -187,8 +172,6 @@ class_pb_run_settings <- S7::new_class(
   )
 )
 
-#' @rdname hpcR_classes
-#' @export
 class_pb_settings <- S7::new_class(
   "class_pb_settings",
   parent = class_property_block,
@@ -197,8 +180,6 @@ class_pb_settings <- S7::new_class(
   )
 )
 
-#' @rdname hpcR_classes
-#' @export
 class_job <- S7::new_class(
   "class_job",
   properties = list(
@@ -217,8 +198,6 @@ class_job <- S7::new_class(
   )
 )
 
-#' @rdname hpcR_classes
-#' @export
 class_job_update <- S7::new_class(
   "class_job_update",
   properties = list(
@@ -234,8 +213,7 @@ class_job_update <- S7::new_class(
   }
 )
 
-#' @rdname hpcR_classes
-#' @export
+#' @noRd
 is_job <- function(x, language = NULL) {
   x <- c(x)
   vapply(
@@ -248,8 +226,7 @@ is_job <- function(x, language = NULL) {
   )
 }
 
-#' @rdname hpcR_classes
-#' @export
+#' @noRd
 is_job_update <- function(x) {
   x <- c(x)
   vapply(
@@ -259,8 +236,7 @@ is_job_update <- function(x) {
   )
 }
 
-#' @rdname hpcR_classes
-#' @export
+#' @noRd
 is_property_block <- function(x, type = NULL) {
   x <- c(x)
   vapply(
