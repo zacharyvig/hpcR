@@ -15,9 +15,9 @@ Imports:
     checkmate,
     cli,
     data.table,
-    glue,
     rlang,
     S7,
+    tools,
     methods,
     utils
 Encoding: UTF-8
@@ -26,3 +26,18 @@ RoxygenNote: 7.3.3
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+Collate: 
+    'check_job_status.R'
+    'job_properties.R'
+    'job_classes.R'
+    'compile_job.R'
+    'hpcR-package.R'
+    'invoke_system.R'
+    'job_methods.R'
+    'submit_job.R'
+    'sugar.R'
+    'update_job.R'
+    'utils.R'
+    'validate.R'
+    'wait_for_job.R'
+    'zzz.R'

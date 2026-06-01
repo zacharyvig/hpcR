@@ -54,3 +54,17 @@ test_that("validation warns on invalid scheduler name", {
     fixed = TRUE
   )
 })
+
+test_that("validation warns on invalid package names and paths", {
+  expect_error(
+    rjob("test") + packages(c("dplyr", "nonexistentpkg123")),
+    "not installed",
+    fixed = TRUE
+  )
+
+  expect_error(
+    rjob("test") + packages("dplyr", installation_path = "nonexistent/path"),
+    "None of the specified package installation paths exist",
+    fixed = TRUE
+  )
+})

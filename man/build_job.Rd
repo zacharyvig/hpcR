@@ -3,20 +3,24 @@
 \name{build_job}
 \alias{build_job}
 \alias{rjob}
+\alias{job_name}
 \alias{script}
 \alias{job_directory}
-\alias{job_name}
-\alias{resources}
 \alias{scheduler}
+\alias{resources}
+\alias{packages}
+\alias{settings}
 \title{Build a job to submit to an HPC}
 \usage{
 rjob(job_name = NULL)
+
+job_name(job_name = NULL)
 
 script(script_path = NULL)
 
 job_directory(job_directory = NULL)
 
-job_name(job_name = NULL)
+scheduler(scheduler_name = NULL)
 
 resources(
   n_nodes = NULL,
@@ -26,14 +30,23 @@ resources(
   memory_per_core = NULL
 )
 
-scheduler(scheduler_name = NULL)
+packages(package_names = NULL, installation_path = .libPaths())
+
+settings(print_session_info = NULL, print_environment = NULL)
 }
 \arguments{
 \item{job_name}{A character string. The name of the job used in dependency
 specification and job scheduler naming.}
 
+\item{script_path}{A character string. The path to the script to be executed
+by the HPC.}
+
 \item{job_directory}{A character string. The path to the 'home' directory
 for this job. TODO: Say what will be stored here}
+
+\item{scheduler_name}{A character string. The scheduler to be used for this
+job. Options are slurm' (or 'sbatch'), 'torque' (or 'qsub'), or 'local'
+(or 'sh').}
 
 \item{n_nodes}{A number or character string. The number of compute nodes
 to be requested on the scheduler.}
@@ -51,18 +64,24 @@ to requested by the job. This is mutually exclusive with
 \item{memory_per_core}{A number or character string. The amount of memory to
 be requested per core. This is mutually exclusive with \code{total_memory}.}
 
-\item{script}{A character string. The path to the script to be executed by
-the HPC.}
+\item{package_names}{A character vector. The names of packages to be loaded
+for the job.}
 
-\item{scheduler}{A character string. The scheduler to be used for this job.
-Options are slurm' (or 'sbatch'), 'torque' (or 'qsub'), or 'local' (or 'sh').}
+\item{installation_path}{A character vector. The path(s) to the library
+where packages are stored. Defaults to \code{.libPaths()}, which should
+work most of the time.}
 
-\item{...}{Additional arguments to be passed to the property validator(s).
-These are intended for internal or expert use, so can be ignored by most
-users.}
+\item{print_session_info}{If \code{TRUE}, print the \code{sessionInfo()} and
+\code{Sys.info()} when the job starts. Useful for debugging problems with the
+compute environment or R installation. Default: \code{FALSE}.}
+
+\item{print_environment}{If \code{TRUE}, print the \code{Sys.getenv()} when
+the job starts. This can produce a lot of output, but can be useful if
+certain environment variables are not being found when your job runs, leading
+it to fail. Default: \code{FALSE}.}
 }
 \value{
-A job object with the properties
+A job object with the properties specified by the user.
 }
 \description{
 \pkg{hpcR} provides a dynamic, user-friendly way to build
@@ -77,12 +96,19 @@ functions are light-weight and meant to be easy to remember.
 \details{
 Building a job always starts by initializing the job object using a
 language-specific function (e.g., \code{rjob()}), depending on the language
-of your script. Properties are then successively added, and softly validated,
-i.e., warnings are thrown about formatting and other basic mistakes.
+of your script/code. Properties are then successively added, and validated,
+i.e., errors are thrown about formatting and other basic mistakes.
 
 Property statements are either named by the property they represent (e.g.,
 \code{script} takes a path to a script to be executed), or by the general
 group of properties when a collection of properties are related (e.g.,
 \code{resources()} takes arguments \code{n_nodes}, \code{n_cores}, etc.)
 }
-\keyword{internal}
+\section{Property Statements}{
+
+The following are the main property statements currently available:
+\itemize{
+   \item{\code{rjob()}:}{}
+}
+}
+

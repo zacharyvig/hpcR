@@ -15,7 +15,9 @@
 #' @keywords internal
 validate_property <- S7::new_generic("validate_property", "name")
 
-S7::method(validate_property, S7::class_character) <- function(
+S7::method(
+  validate_property, S7::class_character
+) <- function(
   name, value, .call = rlang::caller_env(), use_default_settings = TRUE,
   fail_on_invalid = TRUE, allow_na = FALSE, allow_missing = FALSE
 ) {
@@ -98,6 +100,11 @@ S7::method(validate_property, S7::class_character) <- function(
         allow_na = TRUE,
         allow_missing = TRUE
       ),
+      packages = list(
+        fail_on_invalid = TRUE,
+        allow_na = TRUE,
+        allow_missing = TRUE
+      ),
       cli::cli_abort("Unknown property: {property}", internal = TRUE)
     )
   } else if (stage == "submit") {
@@ -128,11 +135,18 @@ S7::method(validate_property, S7::class_character) <- function(
         allow_na = FALSE,
         allow_missing = FALSE
       ),
+      # still just warn at submission in case of wrong package install location
+      packages = list(
+        fail_on_invalid = FALSE,
+        allow_na = TRUE,
+        allow_missing = TRUE
+      ),
       cli::cli_abort("Unknown property: {property}", internal = TRUE)
     )
   }
 }
 
+# how "missing" is defined for validation
 .is_missing <- function(x) {
   missing(x) || is.null(x) || !length(x)
 }
@@ -159,13 +173,14 @@ S7::method(validate_property, S7::class_character) <- function(
         settings = settings
       )
     } else if (value$input_type == "oneliner") {
-      cli::cli_abort("Work in progress: oneliner validation not yet implemented",
-           call = .call, internal = TRUE)
+      cli::cli_abort(
+        "Work in progress: oneliner validation not yet implemented",
+        call = .call, internal = TRUE
+      )
     } else {
       cli::cli_abort("Unknown input type: {.code {value$input_type}}",
-                      call = .call, internal = TRUE)
+                     call = .call, internal = TRUE)
     }
-      
   }
 }
 
@@ -279,7 +294,6 @@ S7::method(validate_property, S7::class_character) <- function(
       c("Resources has invalid fields:", "{.list {invalid_fields}}"),
       call = .call
     )
-    return(invisible())
   } else if (length(value$total_memory) &&
                length(value$memory_per_core)) {
     notify("Total memory and memory per core are mutually exclusive",
@@ -362,7 +376,9 @@ S7::method(validate_property, S7::class_character) <- function(
     wall_time_chr <- suppressWarnings(as.character(value))
     if (!grepl(regex, wall_time_chr)) {
       notify(
-        "Wall time must be MM[:SS], HH:MM:SS or dd-HH[:MM][:SS]", call = .call
+        paste("Wall time must be a character string in the format", 
+              "MM[:SS], HH:MM:SS or dd-HH[:MM][:SS]"),
+        call = .call
       )
     }
   }
@@ -437,7 +453,6 @@ S7::method(validate_property, S7::class_character) <- function(
       c("Scheduler has invalid fields:", "{.list {invalid_fields}}"),
       call = .call
     )
-    return(invisible())
   }
   scheduler_name <- value$scheduler_name
   if (.is_missing(scheduler_name)) {
@@ -448,7 +463,61 @@ S7::method(validate_property, S7::class_character) <- function(
   } else if (!checkmate::test_string(scheduler_name, min.chars = 1)) {
     notify("Scheduler name must be a single, non-empty character string",
            call = .call)
-  } else if (!scheduler_name %in% .get_valid_schedulers()) {
+  } else if (
+    !checkmate::test_choice(
+      standardize_scheduler_name(scheduler_name),
+      get_supported_schedulers(include_alias = FALSE)
+    )
+  ) {
     notify("Scheduler name invalid or currently not supported", call = .call)
   }
+}
+
+#' Internal packages validator
+#' @noRd
+.validate_packages <- function(
+  value, .call = rlang::caller_env(),
+  settings = .get_validator_defaults("packages")
+) {
+  notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
+  items <- class_pb_packages@properties |> names()
+  invalid_fields <- setdiff(names(value), items)
+  if (length(invalid_fields)) {
+    # rare case when working directly with the validate functions directly
+    cli::cli_abort(
+      c("Packages has invalid fields:", "{.list {invalid_fields}}"),
+      call = .call
+    )
+  }
+  package_names <- value$package_names
+  installation_path <- value$installation_path
+  if (.is_missing(package_names)) {
+    if (settings$allow_missing) return(invisible())
+    notify("Package names are missing", call = .call)
+  } else if (settings$allow_na && isTRUE(is.na(package_names))) {
+    return(invisible())
+  } else if (!checkmate::test_character(package_names, min.len = 1)) {
+    notify("Package names must be a character vector", call = .call)
+  } else if (any(!nzchar(package_names))) {
+    notify("Package names cannot be empty strings", call = .call)
+  }
+  paths_exist <- vapply(
+    installation_path, checkmate::test_directory_exists, logical(1)
+  )
+  if (all(!paths_exist)) {
+    notify(
+      c("None of the specified package installation paths exist:",
+        "{.list {installation_path}}"),
+      call = .call
+    )
+  }
+  installed <- .packages_installed(package_names, installation_path)
+  if (any(!installed)) {
+    missing_packages <- package_names[!installed]
+    notify(
+      c("Requested packages are not installed:", "{.list {missing_packages}}"),
+      call = .call
+    )
+  }
+  return(invisible())
 }

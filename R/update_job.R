@@ -1,26 +1,73 @@
-#' Internal function to update a Job object and validate properties
+# TODO: more formal documentation
+
+
+#' @title Incrementally build a job using `+`
+#'
 #' @param e1 A class_job object to be updated
 #' @param e2 A class_job_update object containing the updates
 #' @param warn_overwrite Whether to warn about overwritten properties
-#' @param .call The calling environment
+#' @param .call The calling environment for warning/error messages
 #' @param use_default_settings Whether to use default validation settings
-#' 
-#' @keywords internal
+#' @param ... Not currently used
+#'
+#' @name update_job
+#' @docType methods
+#' @include job_classes.R
+#' @export
+update_job <- S7::new_generic("update_job", c("e1", "e2"))
+
+
+S7::method(`+`, list(class_job, class_job_update)) <- function(e1, e2) {
+  if (!is_job_update(e2)) {
+    cli::cli_abort(
+      "The right-hand side of {.code +} must be a valid job property statement",
+      call = rlang::caller_env()
+    )
+  }
+  .update_job(e1, e2, use_default_settings = TRUE)
+}
+
+
+S7::method(
+  update_job, list(class_job, class_job_update)
+) <- function(
+  e1, e2, warn_overwrite = TRUE,
+  use_default_settings = TRUE
+) {
+  if (!is_job_update(e2)) {
+    # should be handled by dispatch now -- could deprecate
+    cli::cli_abort(
+      paste("The right-hand side of {.fn update_job}",
+            "must be a valid job property statement"),
+      internal = TRUE
+    )
+  }
+  .update_job(
+    e1, e2, warn_overwrite = warn_overwrite,
+    use_default_settings = use_default_settings
+  )
+}
+
+
+#' Internal function to update a Job object by adding a class_job_update object
+#' and validate properties
+#' @noRd
 .update_job <- function(e1, e2, warn_overwrite = TRUE,
-                        .call = rlang::caller_env(),
                         use_default_settings = TRUE) {
-  # if class_job_update, extract updates;
-  # if not, assume it's a list of properties
+  # RHS must be a job update object
   if (is_job_update(e2)) {
+    .update_call <- e2@.update_call
     e2 <- e2@updates
   } else {
     cli::cli_abort(
       "Invalid job update object; must be of class 'class_job_update'",
-      call = .call
     )
   }
+  if (is.null(names(e2))) {
+    cli::cli_abort("Job update is empty")
+  }
   if (!all(names(e2) %in% S7::prop_names(e1))) {
-    cli::cli_abort("Job update contains invalid properties", call = .call)
+    cli::cli_abort("Job update contains unknown properties")
   }
   # unlock if necessary
   has_lock <- ".locked" %in% S7::prop_names(e1)
@@ -35,14 +82,12 @@
     if (is.list(new_value) && !is_property_block(old_value)) {
       cli::cli_abort(
         "Attempting to overwrite a non-list property with a list",
-        internal = TRUE, call = .call
+        internal = TRUE
       )
     }
     # store overwritten properties
     if (is_block_update) {
-      merged <- .merge_property_block(
-        S7::props(old_value), new_value, .call = .call
-      )
+      merged <- .merge_property_block(S7::props(old_value), new_value)
       if (length(merged$overwritten)) {
         overwritten <- c(overwritten, merged$overwritten)
       }
@@ -52,7 +97,7 @@
     }
     # always validate properties
     validate_property(
-      name = property, value = new_value, .call = .call,
+      name = property, value = new_value, .call = .update_call,
       use_default_settings = use_default_settings
     )
     # rehydrate property block if applicable
@@ -85,7 +130,7 @@
                                   .call = rlang::caller_env()) {
   # Implementation for merging property blocks
   if (!all(names(new_values) %in% names(old_values))) {
-    cli::cli_abort("Job update contains invalid properties", call = .call)
+    cli::cli_abort("Job update contains unknown properties", call = .call)
   }
   # retrieve non-empty new values
   idx <- vapply(new_values, length, integer(1))
@@ -124,36 +169,4 @@
     return(do.call(class(old_value), list(0)))
   }
   new_value
-}
-
-#' @title Incrementally build a job using `+`
-#' @name update_job
-#' @keywords internal
-NULL
-
-#' @rdname update_job
-#' @method + hpcR::class_job
-#' @export
-`+.hpcR::class_job` <- function(e1, e2) {
-  if (!is_job_update(e2)) {
-    cli::cli_abort(
-      "The right-hand side of {.code +} must be a valid job property statement",
-      call = rlang::caller_env()
-    )
-  }
-  .update_job(e1, e2, .call = rlang::caller_env(), use_default_settings = TRUE)
-}
-
-#' @rdname update_job
-#' @method update hpcR::class_job
-#' @export
-`update.hpcR::class_job` <- function(e1, e2) {
-  if (!is_job_update(e2)) {
-    cli::cli_abort(
-      paste("The right-hand side of {.fn update}",
-            "must be a valid job property statement"),
-      call = rlang::caller_env()
-    )
-  }
-  .update_job(e1, e2, use_default_settings = TRUE)
 }
