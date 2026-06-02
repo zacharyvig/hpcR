@@ -213,6 +213,23 @@ class_job_update <- S7::new_class(
   }
 )
 
+class_job_summary <- S7::new_class(
+  "class_job_summary",
+  properties = list(
+    job_name = guarded("job_name", S7::class_character),
+    scheduler_name = guarded("scheduler_name", S7::class_character),
+    input_value = guarded("input_value", S7::class_character),
+    input_type = guarded("input_type", S7::class_character),
+    language = guarded("language", S7::class_character),
+    resources = guarded("resources", S7::class_list),
+    job_directory = guarded("job_directory", S7::class_character),
+    .locked =  S7::new_property(
+      class = S7::class_logical,
+      default = FALSE
+    )
+  )
+)
+
 #' @noRd
 is_job <- function(x, language = NULL) {
   x <- c(x)
@@ -245,6 +262,16 @@ is_property_block <- function(x, type = NULL) {
       S7::S7_inherits(x[[i]], class = class_property_block) &&
         (is.null(type) || inherits(x[[i]], type))
     },
+    logical(1)
+  )
+}
+
+#' @noRd
+is_job_summary <- function(x) {
+  x <- c(x)
+  vapply(
+    seq_along(x),
+    function(i) S7::S7_inherits(x[[i]], class = class_job_summary),
     logical(1)
   )
 }

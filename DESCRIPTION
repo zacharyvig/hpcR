@@ -34,6 +34,7 @@ Collate:
     'hpcR-package.R'
     'invoke_system.R'
     'job_methods.R'
+    'print_job.R'
     'submit_job.R'
     'sugar.R'
     'update_job.R'

@@ -37,7 +37,7 @@
 #'                 scheduler = "local", quiet = TRUE)
 #' }
 #'
-#' @author Michael Hallquist, Zach Vig
+#' @name wait_for_job
 #' @export
 wait_for_job <- function(
   job_ids,

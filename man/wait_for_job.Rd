@@ -59,6 +59,3 @@ Note that for the \code{scheduler} argument, 'torque' and 'qsub' are aliases;
 }
 
 }
-\author{
-Michael Hallquist, Zach Vig
-}

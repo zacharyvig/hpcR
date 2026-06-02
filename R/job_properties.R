@@ -2,10 +2,10 @@
 #' @param value The character value to be made read-only
 #' @return A read-only S7 property
 #' @noRd
-read_only <- function(value) {
-  stopifnot(is.character(value))
+read_only <- function(value, class = S7::class_character) {
+  stopifnot(inherits(value, class))
   S7::new_property(
-    class = S7::class_character,
+    class = class,
     getter = function(self) return(value)
   )
 }
