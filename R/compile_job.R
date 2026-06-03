@@ -13,16 +13,16 @@ NULL
 compile_job <- S7::new_generic("compile_job", "job")
 
 
-S7::method(compile_job, class_job) <- function(job) {
-  cli::cli_abort("Compile method not yet implemented")
-  # TODO: validate job
+S7::method(compile_job, class_job) <- function(
+  job, .call = rlang::caller_env(), ...
+) {
+  .compile_job(job)
 }
 
 
 #' Internal function to compile a job object for submission
 #' @noRd
 .compile_job <- function(job) {
-
   scheduler_name <- job@scheduler@scheduler_name
   hpc_schedulers <- get_supported_schedulers(
     hpc_only = TRUE, include_alias = FALSE

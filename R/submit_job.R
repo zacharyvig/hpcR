@@ -98,6 +98,36 @@ submit_job  <- function(
   checkmate::assert_character(env_variables, null.ok = TRUE)
   checkmate::assert_list(control, null.ok = TRUE)
 
+  out <- rlang::exec(
+    .submit_job,
+    input = input,
+    input_type = input_type,
+    fail_on_error = fail_on_error,
+    depends_on = depends_on,
+    env_variables = env_variables,
+    echo = echo,
+    scheduler_name = scheduler_name,
+    control = control,
+    .call = .call
+  )
+
+  return(out)
+}
+
+#' Internal function to dispatch to correct submission function
+#' @noRd
+.submit_job <- function(
+  input,
+  input_type = c("script", "oneliner"),
+  scheduler_name,
+  fail_on_error = FALSE,
+  depends_on = NULL,
+  env_variables = NULL,
+  echo = FALSE,
+  control = list(),
+  .call = rlang::caller_env()
+) {
+
   # get submit function
   submit_function <- switch(
     scheduler_name,

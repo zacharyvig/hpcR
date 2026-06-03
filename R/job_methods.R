@@ -15,8 +15,23 @@ submit <- S7::new_generic("submit", "job")
 
 
 S7::method(submit, class_job) <- function(job) {
-  cli::cli_alert("Submit method not yet implemented")
-  return(invisible(NULL))
+  .validate_job(job, stage = "submit", .call = rlang::caller_env())
+  compiled_job <- .compile_job(job)
+  out <- .submit_job(
+    input = compiled_job@input@input_value,
+    input_type = compiled_job@input@input_type,
+    scheduler_name = compiled_job@scheduler@scheduler_name,
+    env_variables = compiled_job@.compiled@env_variables,
+    control = list(
+      scheduler_arguments = compiled_job@.compiled@scheduler_arguments
+    ),
+    .call = rlang::caller_env()
+  )
+  if (is.null(out)) {
+    return(invisible(NULL))
+  } else {
+    return(out)
+  }
 }
 
 

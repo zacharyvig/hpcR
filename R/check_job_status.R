@@ -427,6 +427,9 @@ get_default_status_columns <- function(scheduler_name) {
         "suspended" = "suspended",
         "missing" = "missing from scheduler response",
         "failed" = "failed",
+        cli::cli_abort(
+          "Unsupported status: {status}", internal = TRUE
+        )
       )
       cli::cli_inform(
         "{cli::qty(length(jobs))} Job{?s} {status_message}: {jobs}"

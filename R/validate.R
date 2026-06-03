@@ -1,15 +1,16 @@
 # These are validation methods and internal validators
 # Internals are named `.validate_*` where `*` is the name of the property
 
-# #' Validate a job object
-# #' @keywords internal
-# validate_job <- S7::new_generic("validate_job", c("job_obj"))
+#' Validate a job object
+#' @keywords internal
+validate_job <- S7::new_generic("validate_job", "job")
 
-# S7::method(validate_job, Job) <- function(
-#   job_obj, .call = rlang::caller_env(), strict = TRUE, optional = FALSE
-# ) {
-#   .validate_job(job_obj, .call = .call, strict = strict, optional = optional)
-# }
+S7::method(validate_job, class_job) <- function(
+  job, stage = c("update", "submit"), .call = rlang::caller_env()
+) {
+  stage <- match.arg(stage)
+  .validate_job(job, .call = .call, stage = stage)
+}
 
 #' Validate a property
 #' @keywords internal
@@ -18,7 +19,7 @@ validate_property <- S7::new_generic("validate_property", "name")
 S7::method(
   validate_property, S7::class_character
 ) <- function(
-  name, value, .call = rlang::caller_env(), use_default_settings = TRUE,
+  name, value, use_default_settings = TRUE, .call = rlang::caller_env(),
   fail_on_invalid = TRUE, allow_na = FALSE, allow_missing = FALSE
 ) {
   validator <- get(
@@ -32,28 +33,40 @@ S7::method(
       allow_missing = allow_missing
     )
     rlang::exec(
-      validator, value = value, .call = .call, settings = settings
+      validator, value = value, .call = .call,
+      settings = settings
     )
   }
 }
 
-# # TODO: don't add a line for every validator (too cumbersome)
-# #' Internal job validator
-# #' @noRd
-# .validate_job <- function(
-#   job_obj, .call = rlang::caller_env(), strict = TRUE, optional = FALSE
-# ) {
-#   args <- list(
-#     job_obj = job_obj,
-#     .call = .call,
-#     strict = strict,
-#     optional = optional # this one might not always apply so come back later
-#   )
-#   do.call(validate_script, args)
-#   do.call(validate_job_name, args)
-#   do.call(validate_job_directory, args)
-#   do.call(validate_resources, args)
-# }
+#' Internal job validator
+#' @noRd
+.validate_job <- function(
+  job, stage, .call = rlang::caller_env(), exclude = "^[.]"
+) {
+
+  checkmate::assert_string(exclude)
+
+  # get non-hidden properties
+  properties <- S7::prop_names(job)
+  properties <- properties[!grepl(exclude, properties)]
+
+  for (property in properties) {
+    value <- S7::prop(job, property)
+    if (inherits(value, "hpcR::class_property_block")) {
+      value <- S7::props(value)
+    }
+    settings <- .get_validator_defaults(property, stage = stage)
+    validate_property(
+      name = property, value = value, .call = .call,
+      use_default_settings = FALSE,
+      fail_on_invalid = settings$fail_on_invalid,
+      allow_na = settings$allow_na,
+      allow_missing = settings$allow_missing
+    )
+  }
+
+}
 
 #' Central function for defining validation defaults
 #' @param property The name of the property to get defaults for
@@ -208,7 +221,7 @@ S7::method(
   }
   if (length(value$extension) && length(value$language)) {
     ext <- tools::file_ext(script_path)
-    if (ext != value$extension) {
+    if (isFALSE(ext == value$extension)) {
       notify(
         paste("Script must end in {.code {value$extension}} for",
               "{.code {value$language}} jobs"),
