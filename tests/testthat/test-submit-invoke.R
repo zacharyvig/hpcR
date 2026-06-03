@@ -64,6 +64,8 @@ test_that("submit_job fails if os is windows", {
       },
       "Local scheduler requires UNIX-like"
     )
+  } else {
+    testthat::skip("This test is only relevant on Windows.")
   }
 })
 

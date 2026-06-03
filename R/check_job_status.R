@@ -159,7 +159,7 @@ get_default_status_columns <- function(scheduler_name) {
 .check_job_status_slurm <- function(
   job_ids = NULL,
   user = NULL,
-  standardize = TRUE,
+  standardize_output = TRUE,
   columns = get_default_status_columns("slurm"),
   .call = rlang::caller_env(),
   ...
@@ -216,7 +216,7 @@ get_default_status_columns <- function(scheduler_name) {
     merged_df$State <- "MISSING"
   }
 
-  out <- if (standardize) {
+  out <- if (standardize_output) {
     .standardize_statuses(merged_df, "slurm")
   } else {
     merged_df
@@ -230,7 +230,7 @@ get_default_status_columns <- function(scheduler_name) {
 .check_job_status_torque <- function(
   job_ids = NULL,
   user = NULL,
-  standardize = TRUE,
+  standardize_output = TRUE,
   .call = rlang::caller_env(),
   ...
 ) {
@@ -305,7 +305,7 @@ get_default_status_columns <- function(scheduler_name) {
     return(data.frame(JobID = job_ids, State = "missing"))
   }
 
-  out <- if (standardize) {
+  out <- if (standardize_output) {
     .standardize_statuses(state_df, "torque")
   } else {
     state_df

@@ -157,7 +157,7 @@ S7::method(
   value, .call = rlang::caller_env(),
   settings = .get_validator_defaults("input")
 ) {
-  items <- class_pb_input@properties |> names()
+  items <- names(class_pb_input@properties)
   invalid_fields <- setdiff(names(value), items)
   if (length(invalid_fields)) {
     # rare case when working directly with the validate functions directly
@@ -286,7 +286,7 @@ S7::method(
   settings = .get_validator_defaults("resources")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
-  items <- class_pb_resources@properties |> names()
+  items <- names(class_pb_resources@properties)
   invalid_fields <- setdiff(names(value), items)
   if (length(invalid_fields)) {
     # rare case when working directly with the validate functions directly
@@ -445,7 +445,7 @@ S7::method(
   settings = .get_validator_defaults("scheduler")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
-  items <- class_pb_scheduler@properties |> names()
+  items <- names(class_pb_scheduler@properties)
   invalid_fields <- setdiff(names(value), items)
   if (length(invalid_fields)) {
     # rare case when working directly with the validate functions directly
@@ -480,7 +480,7 @@ S7::method(
   settings = .get_validator_defaults("packages")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
-  items <- class_pb_packages@properties |> names()
+  items <- names(class_pb_packages@properties)
   invalid_fields <- setdiff(names(value), items)
   if (length(invalid_fields)) {
     # rare case when working directly with the validate functions directly

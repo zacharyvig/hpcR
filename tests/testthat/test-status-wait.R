@@ -68,12 +68,12 @@ test_that(".standardize_statuses maps local states", {
 test_that("wait_for_job returns TRUE when jobs complete", {
   testthat::local_mocked_bindings(
     .check_job_status = function(job_ids, scheduler_name, ...) {
-      data.frame(JobID = job_ids, State = "COMPLETED", stringsAsFactors = FALSE)
+      "complete"
     },
     .package = "hpcR"
   )
 
-  out <- wait_for_job(
+  out <- .wait_for_job(
     job_ids = "100",
     repolling_interval = 0.1,
     max_wait = 10,
@@ -87,12 +87,12 @@ test_that("wait_for_job returns TRUE when jobs complete", {
 test_that(".wait_for_job returns FALSE on timeout when stop_on_timeout is FALSE", {
   testthat::local_mocked_bindings(
     .check_job_status = function(job_ids, scheduler_name, ...) {
-      data.frame(JobID = job_ids, State = "RUNNING", stringsAsFactors = FALSE)
+      "running"
     },
     .package = "hpcR"
   )
 
-  out <- hpcR:::.wait_for_job(
+  out <- .wait_for_job(
     job_ids = "101",
     repolling_interval = 0.1,
     max_wait = 0,

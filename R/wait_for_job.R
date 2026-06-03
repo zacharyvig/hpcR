@@ -90,8 +90,10 @@ wait_for_job <- function(
   # start main loop
   while (isFALSE(job_complete)) {
     # get job status information
-    status_table <- .check_job_status(job_ids, scheduler_name)
-    job_statuses <- .standardize_statuses(status_table, scheduler_name)
+    job_statuses <- .check_job_status(
+      job_ids, scheduler_name = scheduler_name, standardize_output = TRUE,
+      .call = .call
+    )
 
     # update wait time
     wait_total <- as.numeric(
