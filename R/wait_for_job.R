@@ -51,7 +51,7 @@ wait_for_job <- function(
   scheduler_name <- match.arg(scheduler_name)
 
   # validate input
-  checkmate::assert_character(job_ids, min.len = 1)
+  checkmate::assert_character(job_ids, min.len = 1, min.chars = 1)
   checkmate::assert_number(repolling_interval, lower = 0.1, upper = 2e5)
   checkmate::assert_number(max_wait, lower = 1, upper = 60 * 60 * 24 * 21)
   checkmate::assert_logical(quiet)
@@ -133,5 +133,5 @@ wait_for_job <- function(
       Sys.sleep(repolling_interval)
     }
   }
-  return(return_code)
+  return(unname(return_code))
 }

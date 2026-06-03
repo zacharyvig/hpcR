@@ -74,7 +74,7 @@ invoke_system <- function(
 #' @noRd
 .invoke_system_local <- function(
   input,
-  input_type = c("script", "command"),
+  input_type = c("script", "oneliner"),
   push_command = "sh",
   scheduler_arguments = NULL,
   fail_on_error = FALSE,
@@ -86,7 +86,7 @@ invoke_system <- function(
   script_label <- switch(
     input_type,
     "script" = file_path,
-    "command" = "oneliner"
+    input_type
   )
   sub_stdout <- paste0(tempfile(), "_", script_label, "_stdout")
   sub_stderr <- paste0(tempfile(), "_", script_label, "_stderr")
@@ -95,7 +95,7 @@ invoke_system <- function(
   run_part <- switch(
     input_type,
     "script" = paste(push_command, input),
-    "command" = input
+    "oneliner" = input
   )
 
   # for direct execution, need to pass environment variables by prepending
@@ -111,8 +111,16 @@ invoke_system <- function(
   )
   # sometimes the pid file is not in place when file.exists executes --
   # add a bit of time to ensure that it reads
+  wait_time <- repolling_interval <- 0.05
+  max_wait <- 5
+  while(
+    !checkmate::test_file_exists(sub_pid) && wait_time < max_wait
+  ) {
+    Sys.sleep(repolling_interval)
+    wait_time <- wait_time + repolling_interval
+  }
   job_id <- if (checkmate::test_file_exists(sub_pid)) {
-    Sys.sleep(.05)
+    Sys.sleep(.1)
     scan(file = sub_pid, what = "char", sep = "\n", quiet = TRUE)
   } else {
     ""
