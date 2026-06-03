@@ -10,7 +10,7 @@ test_that("submission succeeds on available scheduler", {
   }
 
   if (is.null(scheduler)) {
-    testthat::skip("No supported scheduler available for integration test.")
+    testthat::skip("No supported scheduler available for run test.")
   }
 
   if (scheduler == "local" && .Platform$OS.type == "windows") {
@@ -71,6 +71,10 @@ test_that("submission succeeds on available scheduler", {
 })
 
 test_that("local oneliner submission succeeds", {
+  if (.Platform$OS.type == "windows") {
+    testthat::skip("Local scheduler requires UNIX-like shell tools.")
+  }
+
   command <- "echo hello"
 
   job_id <- .submit_to_local(
@@ -82,6 +86,6 @@ test_that("local oneliner submission succeeds", {
     echo = FALSE
   )
 
-  expect_true(nzchar(job_id))  
+  expect_true(nzchar(job_id))
 
 })

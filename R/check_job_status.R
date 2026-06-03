@@ -409,14 +409,14 @@ get_default_status_columns <- function(scheduler_name) {
 
 #' Internal function to throw applicable message based on status
 #' @param job_statuses A named vector of job statuses with job IDs as names.
-#' @param status_to_check A named vector of statuses to check for in
-#' `job_statuses`. Note that the function is vectorized.
+#' @param status_to_check A vector of statuses to check for in `job_statuses`.
+#' Note that the function is vectorized.
 #' @return A named logical vector indicating which statuses are present in
 #' \code{job_statuses} and used to trigger messages.
 #' @noRd
 .give_status_update <- function(job_statuses, status_to_check) {
   out <- rep(FALSE, length(status_to_check))
-  names(out) <- names(status_to_check)
+  names(out) <- status_to_check
   for (status in status_to_check) {
     if (any(job_statuses == status)) {
       jobs <- names(job_statuses)[job_statuses == status]
@@ -429,7 +429,7 @@ get_default_status_columns <- function(scheduler_name) {
         "failed" = "failed",
       )
       cli::cli_inform(
-        "{cli::qty(length(jobs))} job{?s} {status_message}: {jobs}"
+        "{cli::qty(length(jobs))} Job{?s} {status_message}: {jobs}"
       )
       out[status] <- TRUE
     }
