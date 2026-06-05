@@ -20,7 +20,7 @@
 #' @noRd
 .format_job <- function(job, ...) {
   cli::cli_format_method({
-    cli::cli_text("<<hpcR Job Object: '{job@job_name}'>>")
+    cli::cli_text("<<{.pkg hpcR} Job Object: '{job@job_name}'>>")
   })
 }
 
@@ -33,11 +33,15 @@
     oneliner = "One-liner",
     script = sprintf("%s Job", tools::toTitleCase(job_summary@language))
   )
-  input_value <- switch(
-    job_summary@input_type,
-    oneliner = sprintf("{.code %s}", job_summary@input_value),
-    script = sprintf("{.file .../%s}", basename(job_summary@input_value))
-  )
+  if (length(job_summary@input_value)) {
+    input_value <- switch(
+      job_summary@input_type,
+      oneliner = sprintf("{.code %s}", job_summary@input_value),
+      script = sprintf("{.file .../%s}", basename(job_summary@input_value))
+    )
+  } else {
+    input_value <- .get_empty_label()
+  }
   cli::cli_format_method({
     div <- cli::cli_div(theme = theme)
     cli::cli_text("{.pkg hpcR} {cli::symbol$line} {.strong {job_type}}")
@@ -66,7 +70,7 @@
 #' Internal function to format a summary row with label and value
 #' @noRd
 .format_summary_row <- function(name, value, format = NULL) {
-  empty_label <- "{.empty_value {'<none>'}}"
+  empty_label <- .get_empty_label()
   label <- .get_property_label(name)
   value <- if (is.null(value) || length(value) == 0) empty_label else value
   if (!is.null(format) && value != empty_label) {
@@ -102,4 +106,10 @@
   list(
     "span.empty_value" = list(color = "grey90")
   )
+}
+
+#' Custom value for empty properties in summary
+#' @noRd
+.get_empty_label <- function() {
+  structure("<none>", class = "empty_value")
 }

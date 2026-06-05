@@ -4,15 +4,72 @@
 \name{hpcR_methods}
 \alias{hpcR_methods}
 \alias{submit}
+\alias{print}
+\alias{summary}
+\alias{format}
+\alias{submit.class_job}
+\alias{format.class_job}
+\alias{format.class_job_summary}
+\alias{print.class_job}
+\alias{summary.class_job}
+\alias{print.class_job_summary}
 \title{Working with hpcR job objects}
 \usage{
+## S7 method for class <hpcR::class_job>
 submit(job, ...)
+
+## S7 method for class <hpcR::class_job>
+format(x, ...)
+
+## S7 method for class <hpcR::class_job_summary>
+format(x, ...)
+
+## S7 method for class <hpcR::class_job>
+print(x, ...)
+
+## S7 method for class <hpcR::class_job>
+summary(object, ...)
+
+## S7 method for class <hpcR::class_job_summary>
+format(x, ...)
+
+## S7 method for class <hpcR::class_job_summary>
+print(x, ...)
 }
 \arguments{
-\item{job}{A job object}
+\item{job, x, object}{An \link{hpcR} job object or job summary object.}
 
 \item{...}{Not currently used}
 }
 \description{
-Working with hpcR job objects
+Once a job is built (see \link{build_job}), it can be submitted
+to the specified scheduler using the \code{submit()} function. It can also be
+easily examined using the \code{summary()} method, which provides a concise
+summary of the job's key properties.
+}
+\section{Methods}{
+
+
+The following methods are available and useful for working with \link{hpcR}
+job objects:
+\describe{
+ \item{\code{submit()}:}{Submits a job to the specified scheduler.}
+ \item{\code{summary()}:}{
+   Provides a summary of the job object, including key
+   properties.
+  }
+}
+}
+
+\examples{
+\dontrun{
+my_job <- rjob("my_job") +
+   script("path/to/script.R") +
+   scheduler("slurm") +
+   resources(n_nodes = 2, n_cores = 4,
+             wall_time = "01:00:00")
+submit(my_job)
+summary(my_job)
+}
+
 }

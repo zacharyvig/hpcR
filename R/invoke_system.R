@@ -4,7 +4,7 @@
 #' functions that throws error codes in a standardized format and returns the
 #' job ID/PID. It supports both HPC and local submission via the `where`
 #' argument.
-#' 
+#'
 #' @details The function writes temporary stdout/stderr files to determine
 #' job IDs and error messages.
 #'

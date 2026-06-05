@@ -8,7 +8,13 @@
 #' Properties are represented as functions where the name of the function is the
 #' property (e.g., \code{scheduler()}), or the group of properties (e.g.,
 #' \code{resources(n_nodes = ...)}), and the arguments are the values. These
-#' functions are light-weight and meant to be easy to remember.
+#' functions are light-weight and meant to be easy to remember. Additional
+#' properties can always be added later.
+#'
+#' Once a job is built, it can be submitted to the specified scheduler using the
+#' \code{submit()} function. See \link{hpcR_methods} for more details on working
+#' with job objects.
+#'
 #'
 #' @details
 #' Building a job always starts by initializing the job object using a
@@ -21,23 +27,25 @@
 #' group of properties when a collection of properties are related (e.g.,
 #' \code{resources()} takes arguments \code{n_nodes}, \code{n_cores}, etc.)
 #'
-#' @param job_name A character string. The name of the job used in dependency
-#' specification and job scheduler naming.
+#' @param job_name A character string. The name of the job used by the scheduler
+#' and in the job output.
 #' @param script_path A character string. The path to the script to be executed
 #' by the HPC.
 #' @param job_directory  A character string. The path to the 'home' directory
-#' for this job. TODO: Say what will be stored here
+#' for this job.
 #' @param scheduler_name A character string. The scheduler to be used for this
-#' job. Options are slurm' (or 'sbatch'), 'torque' (or 'qsub'), or 'local'
+#' job. Options are 'slurm' (or 'sbatch'), 'torque' (or 'qsub'), or 'local'
 #' (or 'sh').
 #' @param n_nodes A number or character string. The number of compute nodes
 #' to be requested on the scheduler.
 #' @param n_cores A number or character string. The number of CPUs to be
 #' requested on the scheduler.
 #' @param wall_time A number or character string. The compute time requested
-#' on the cluster using format "MM[:SS]", "HH:MM:SS" or "D-HH[:MM][:SS]"
+#' on the cluster using format "MM[:SS]", "HH:MM:SS" or "D-HH[:MM][:SS]". The
+#' \code{\link{format_wall_time}} function is helpful for converting time
+#' components to the correct format.
 #' @param total_memory A number or character string. The total amount of memory
-#' to requested by the job. This is mutually exclusive with
+#' to be requested by the job. This is mutually exclusive with
 #' \code{memory_per_core}.
 #' @param memory_per_core A number or character string. The amount of memory to
 #' be requested per core. This is mutually exclusive with \code{total_memory}.
@@ -47,21 +55,28 @@
 #' where packages are stored. Defaults to \code{.libPaths()}, which should
 #' work most of the time.
 #' @param print_session_info If \code{TRUE}, print the \code{sessionInfo()} and
-#' \code{Sys.info()} when the job starts. Useful for debugging problems with the
-#' compute environment or R installation. Default: \code{FALSE}.
-#' @param print_environment If \code{TRUE}, print the \code{Sys.getenv()} when
-#' the job starts. This can produce a lot of output, but can be useful if
-#' certain environment variables are not being found when your job runs, leading
-#' it to fail. Default: \code{FALSE}.
+#' \code{Sys.info()} in the output file when the job starts. Useful for
+#' debugging problems with the compute environment or R installation. Default:
+#' \code{FALSE}.
+#' @param print_environment If \code{TRUE}, print the \code{Sys.getenv()} in the
+#' output file when the job starts. This can produce a lot of output, but can be
+#' useful if certain environment variables are not being found when your job
+#' runs, leading it to fail. Default: \code{FALSE}.
 #'
-#' @section Property Statements:
-#' The following are the main property statements currently available:
-#' \itemize{
-#'    \item{\code{rjob()}:}{}
-#' }
 #'
 #' @returns A job object with the properties specified by the user.
 #'
+#' @examples
+#' \dontrun{
+#' my_job <- rjob("my_job") +
+#'    script("path/to/script.R") +
+#'    job_directory("path/to/job_directory") +
+#'    scheduler("slurm") +
+#'    resources(n_nodes = 2, n_cores = 4,
+#'              wall_time = "01:00:00",
+#'              total_memory = "16G") +
+#'    packages(package_names = c("dplyr", "ggplot2"))
+#' }
 #' @name build_job
 NULL
 
@@ -92,8 +107,9 @@ job_name <- function(job_name = NULL) {
 
 #' @rdname build_job
 #' @export
-# `extension` and `language` are currently hard-coded for language-specific jobs
 script <- function(script_path = NULL) {
+  # `extension` and `language` are currently hard-coded for language-specific
+  # jobs
   value <- list(
     input_type = "script",
     input_value = as.character(script_path)

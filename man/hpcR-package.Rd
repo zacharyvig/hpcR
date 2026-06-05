@@ -13,6 +13,7 @@ hpcR provides a simple interface for building jobs to submit to a high-performan
 
 Authors:
 \itemize{
+  \item Zach Vig \email{zachvig@unc.edu}
   \item Michael Hallquist
 }
 

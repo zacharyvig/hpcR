@@ -32,6 +32,7 @@ Collate:
     'job_properties.R'
     'job_classes.R'
     'compile_job.R'
+    'helper_functions.R'
     'hpcR-package.R'
     'invoke_system.R'
     'job_methods.R'

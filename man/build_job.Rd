@@ -35,17 +35,17 @@ packages(package_names = NULL, installation_path = .libPaths())
 settings(print_session_info = NULL, print_environment = NULL)
 }
 \arguments{
-\item{job_name}{A character string. The name of the job used in dependency
-specification and job scheduler naming.}
+\item{job_name}{A character string. The name of the job used by the scheduler
+and in the job output.}
 
 \item{script_path}{A character string. The path to the script to be executed
 by the HPC.}
 
 \item{job_directory}{A character string. The path to the 'home' directory
-for this job. TODO: Say what will be stored here}
+for this job.}
 
 \item{scheduler_name}{A character string. The scheduler to be used for this
-job. Options are slurm' (or 'sbatch'), 'torque' (or 'qsub'), or 'local'
+job. Options are 'slurm' (or 'sbatch'), 'torque' (or 'qsub'), or 'local'
 (or 'sh').}
 
 \item{n_nodes}{A number or character string. The number of compute nodes
@@ -55,10 +55,12 @@ to be requested on the scheduler.}
 requested on the scheduler.}
 
 \item{wall_time}{A number or character string. The compute time requested
-on the cluster using format "MM[:SS]", "HH:MM:SS" or "D-HH[:MM][:SS]"}
+on the cluster using format "MM[:SS]", "HH:MM:SS" or "D-HH[:MM][:SS]". The
+\code{\link{format_wall_time}} function is helpful for converting time
+components to the correct format.}
 
 \item{total_memory}{A number or character string. The total amount of memory
-to requested by the job. This is mutually exclusive with
+to be requested by the job. This is mutually exclusive with
 \code{memory_per_core}.}
 
 \item{memory_per_core}{A number or character string. The amount of memory to
@@ -72,13 +74,14 @@ where packages are stored. Defaults to \code{.libPaths()}, which should
 work most of the time.}
 
 \item{print_session_info}{If \code{TRUE}, print the \code{sessionInfo()} and
-\code{Sys.info()} when the job starts. Useful for debugging problems with the
-compute environment or R installation. Default: \code{FALSE}.}
+\code{Sys.info()} in the output file when the job starts. Useful for
+debugging problems with the compute environment or R installation. Default:
+\code{FALSE}.}
 
-\item{print_environment}{If \code{TRUE}, print the \code{Sys.getenv()} when
-the job starts. This can produce a lot of output, but can be useful if
-certain environment variables are not being found when your job runs, leading
-it to fail. Default: \code{FALSE}.}
+\item{print_environment}{If \code{TRUE}, print the \code{Sys.getenv()} in the
+output file when the job starts. This can produce a lot of output, but can be
+useful if certain environment variables are not being found when your job
+runs, leading it to fail. Default: \code{FALSE}.}
 }
 \value{
 A job object with the properties specified by the user.
@@ -91,7 +94,12 @@ are added using the \code{+} operator (think \pkg{ggplot2})
 Properties are represented as functions where the name of the function is the
 property (e.g., \code{scheduler()}), or the group of properties (e.g.,
 \code{resources(n_nodes = ...)}), and the arguments are the values. These
-functions are light-weight and meant to be easy to remember.
+functions are light-weight and meant to be easy to remember. Additional
+properties can always be added later.
+
+Once a job is built, it can be submitted to the specified scheduler using the
+\code{submit()} function. See \link{hpcR_methods} for more details on working
+with job objects.
 }
 \details{
 Building a job always starts by initializing the job object using a
@@ -104,11 +112,15 @@ Property statements are either named by the property they represent (e.g.,
 group of properties when a collection of properties are related (e.g.,
 \code{resources()} takes arguments \code{n_nodes}, \code{n_cores}, etc.)
 }
-\section{Property Statements}{
-
-The following are the main property statements currently available:
-\itemize{
-   \item{\code{rjob()}:}{}
+\examples{
+\dontrun{
+my_job <- rjob("my_job") +
+   script("path/to/script.R") +
+   job_directory("path/to/job_directory") +
+   scheduler("slurm") +
+   resources(n_nodes = 2, n_cores = 4,
+             wall_time = "01:00:00",
+             total_memory = "16G") +
+   packages(package_names = c("dplyr", "ggplot2"))
 }
 }
-

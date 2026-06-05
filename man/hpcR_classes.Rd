@@ -56,6 +56,10 @@ properties of job objects.
      collections of related job properties. These are useful for
      validation and method dispatch.
    }
+   \item{\code{class_job_summary}}{
+     Top-level class for job summaries. These are used to provide
+     a concise overview of a job's properties.
+   }
 }
 }
 
@@ -87,18 +91,16 @@ a collection of S7 subclasses. These include:
      packages needed for the job to run.
    }
    \item{\code{class_pb_compiled}}{
-    Subclass of \code{class_property_block} for storing compiled information
-   about the job to pass to submission.
+     Subclass of \code{class_property_block} for storing compiled information
+     about the job to pass to submission.
+   }
+   \item{\code{class_pb_run_settings}}{
+     Subclass of \code{class_property_block} for storing
+     run-time settings for the job.
    }
 }
 
 There are also \code{is_*} functions for checking the type of job objects.
-}
-
-\section{Job Properties}{
-
-
-(Full description of properties/slots)
 }
 
 \section{Rationale}{
