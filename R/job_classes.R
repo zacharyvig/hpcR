@@ -153,7 +153,8 @@ class_pb_compiled <- S7::new_class(
   parent = class_property_block,
   properties = list(
     env_variables = S7::class_character,
-    scheduler_arguments = S7::class_character
+    submit_control = S7::class_list,
+    submit_system_file = S7::class_character
   )
 )
 

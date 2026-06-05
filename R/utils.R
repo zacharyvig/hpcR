@@ -129,3 +129,25 @@ get_supported_languages <- function() {
     logical(1)
   )
 }
+
+#' Internal function to wait until a condition is true or until a timeout is
+#' reached
+#' @param condition_fn A function that returns a logical value. The function
+#' will be'nrepeatedly called until it returns TRUE or until the timeout is
+#' reached.
+#' @param timeout Numeric. Maximum time to wait in seconds. Default: 5 seconds.
+#' @param poll_interval Numeric. Time to wait between checks in seconds.
+#' Default: 0.05 seconds.
+#' @return Logical. TRUE if the condition was met within the timeout, FALSE
+#' otherwise.
+#' @noRd
+.wait_until <- function(condition_fn, timeout = 5, poll_interval = 0.05) {
+  start_time <- Sys.time()
+  while (Sys.time() - start_time < timeout) {
+    if (condition_fn()) {
+      return(invisible(TRUE))
+    }
+    Sys.sleep(poll_interval)
+  }
+  return(invisible(FALSE))
+}

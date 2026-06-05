@@ -11,17 +11,21 @@
 
 # load packages
 load_quiet <- function(pkg) {
-  if (!require(pkg, quietly = TRUE, warn.conflicts = FALSE)) {
-    install.packages(pkg, quiet = TRUE)
+  if (!requireNamespace(pkg, quietly = TRUE, warn.conflicts = FALSE)) {
+    install.packages(pkg, quiet = TRUE, repos = "http://cran.us.r-project.org")
   }
   suppressPackageStartupMessages(
-    library(pkg, quietly = TRUE, warn.conflicts = FALSE)
+    library(pkg, quietly = TRUE, warn.conflicts = FALSE, character.only = TRUE)
   )
 }
 
 load_quiet("R.utils")
 load_quiet("cli")
 load_quiet("checkmate")
+cli::cli_alert_info(
+  paste("Packages {.pkg R.utils}, {.pkg cli}, and {.pkg checkmate} loaded for",
+        "internal use by {.pkg hpcR}.")
+)
 
 # tracking function
 update_job_status <- function() {}
@@ -29,27 +33,25 @@ update_job_status <- function() {}
 # read in command line arguments as list (all come in as character)
 args <- R.utils::commandArgs(asValues = TRUE)
 
-cli::cli_alert_info(
-  "Job start time: {Sys.time()}\n"
-)
+cli::cli_alert_info("Job started at {Sys.time()}")
 
 #  TODO: status is STARTED
 
 if (isTRUE(as.logical(args$print_session_info))) {
-  cli::cli_alert_info("Printing session info:")
+  cli::cli_progress_step("Printing session info:")
   print(sessionInfo())
   print(Sys.info())
 }
 
 if (isTRUE(as.logical(args$print_environment))) {
-  cli::cli_alert_info("Printing environment:")
+  cli::cli_progress_step("Printing environment:")
   print(Sys.getenv())
 }
 
 if (!is.null(args$packages) && nzchar(args$packages)) {
   load_quiet("pacman")
   packages <- unlist(strsplit(args$packages, ","))
-  cli::cli_alert_info("Loading R packages:")
+  cli::cli_progress_step("Loading R packages:")
   pacman::p_load(char = trimws(packages))
 }
 
@@ -75,14 +77,14 @@ if (!is.null(args$packages) && nzchar(args$packages)) {
 # }
 
 tryCatch({
-  cli::cli_alert_info("Running R code:")
+  cli::cli_progress_step("Running R code:")
   source(args$input, echo = TRUE, print.eval = TRUE)
   cli::cli_alert_success("R code executed successfully")
 },
 error = function(e) {
   # TODO: status is FAILED, cascade is TRUE
   cli::cli_abort(
-    c("R Code failed to execute! Ending batch run.",
+    c("R Code failed to execute! Ending job run.",
       "x" = "{as.character(e)}"
     )
   )
@@ -99,7 +101,7 @@ error = function(e) {
 #   error = function(e) {
 #     # TODO: status is FAILED, cascade is TRUE
 #     cli::cli_abort(
-#       c("Saving output RData file failed! Ending batch run.",
+#       c("Saving output RData file failed! Ending job run.",
 #         "x" = "{as.character(e)}"
 #       )
 #     )
@@ -136,7 +138,7 @@ error = function(e) {
 #   error = function(e) {
 #     # TODO: status is FAILED, cascade is TRUE
 #     cli::cli_abort(
-#       c("Post-subs R code failed to execute! Ending batch run.",
+#       c("Post-subs R code failed to execute! Ending job run.",
 #         "x" = "{as.character(e)}"
 #       )
 #     )
@@ -147,6 +149,7 @@ error = function(e) {
 #   )
 # }
 
-cli::cli_alert_info("Job end time: {Sys.time()}\n")
+cli::cli_alert_success("Job completed at {Sys.time()}")
+
 
 # TODO: status is COMPLETED

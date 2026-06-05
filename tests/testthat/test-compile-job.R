@@ -78,7 +78,6 @@ test_that(".get_env_variables collects submission metadata", {
 
   env_vars <- hpcR:::.get_env_variables(job)
 
-  expect_equal(env_vars[["submit_system_file"]], "submit_path")
   expect_equal(env_vars[["run_system_file"]], "run_path")
   expect_equal(env_vars[["scheduler_name"]], "slurm")
   expect_equal(env_vars[["print_session_info"]], "FALSE")
@@ -86,10 +85,13 @@ test_that(".get_env_variables collects submission metadata", {
   expect_equal(env_vars[["packages"]], "stats,utils")
 })
 
-test_that(".compile_job_hpc stores compiled artifacts", {
+test_that(".compile_job stores compiled artifacts", {
   testthat::local_mocked_bindings(
     .get_scheduler_arguments = function(job) c("--job-name=test"),
     .get_env_variables = function(job) c(foo = "bar"),
+    .get_system_file = function(file_type, ...) {
+      if (file_type == "run") "run_path" else "submit_path"
+    },
     .package = "hpcR"
   )
 
@@ -103,50 +105,22 @@ test_that(".compile_job_hpc stores compiled artifacts", {
     scheduler("slurm") +
     packages(character(0))
 
-  out <- hpcR:::.compile_job_hpc(job)
+  out <- hpcR:::.compile_job(job)
 
   expect_true(S7::S7_inherits(out@.compiled, class_pb_compiled))
   compiled <- S7::props(out@.compiled)
   expect_equal(compiled$env_variables, c(foo = "bar"))
-  expect_equal(compiled$scheduler_arguments, "--job-name=test")
-})
-
-test_that(".compile_job_local stores compiled env variables", {
-  testthat::local_mocked_bindings(
-    .get_env_variables = function(job) c(foo = "bar"),
-    .package = "hpcR"
-  )
-
-  tmp_script <- tempfile(fileext = ".R")
-  writeLines("print('ok')", tmp_script)
-
-  job <- rjob("test") +
-    script(tmp_script) +
-    job_directory(tempdir()) +
-    resources(n_nodes = 2, n_cores = 4, wall_time = "01:00:00") +
-    scheduler("local") +
-    packages(character(0))
-
-  out <- hpcR:::.compile_job_local(job)
-
-  expect_true(S7::S7_inherits(out@.compiled, class_pb_compiled))
-  compiled <- S7::props(out@.compiled)
-  expect_equal(compiled$env_variables, c(foo = "bar"))
-  expect_equal(length(compiled$scheduler_arguments), 0)
+  expect_equal(compiled$submit_control$scheduler_arguments, "--job-name=test")
+  expect_equal(compiled$submit_system_file, "submit_path")
 })
 
 test_that(".compile_job dispatches by scheduler", {
   called <- new.env(parent = emptyenv())
-  called$hpc <- 0
-  called$local <- 0
+  called$schedulers <- c()
 
   testthat::local_mocked_bindings(
-    .compile_job_hpc = function(job) {
-      called$hpc <- called$hpc + 1
-      job
-    },
-    .compile_job_local = function(job) {
-      called$local <- called$local + 1
+    .compile_job = function(job) {
+      called$schedulers <- c(called$schedulers, job@scheduler@scheduler_name)
       job
     },
     .package = "hpcR"
@@ -172,8 +146,7 @@ test_that(".compile_job dispatches by scheduler", {
   hpcR:::.compile_job(hpc_job)
   hpcR:::.compile_job(local_job)
 
-  expect_equal(called$hpc, 1)
-  expect_equal(called$local, 1)
+  expect_equal(called$schedulers, c("slurm", "local"))
 })
 
 test_that(".compile_job rejects unsupported schedulers", {

@@ -24,51 +24,36 @@ S7::method(compile_job, class_job) <- function(
 #' @noRd
 .compile_job <- function(job) {
   scheduler_name <- job@scheduler@scheduler_name
-  hpc_schedulers <- get_supported_schedulers(
-    hpc_only = TRUE, include_alias = FALSE
-  )
 
-  if (scheduler_name %in% hpc_schedulers) {
-    return(.compile_job_hpc(job))
-  } else {
-    return(.compile_job_local(job))
-  }
-}
-
-
-.compile_job_hpc <- function(job) {
   # unlock if necessary
   has_lock <- ".locked" %in% S7::prop_names(job)
   if (has_lock) job@.locked <- FALSE
 
   # gather scheduler arguments from job properties
-  scheduler_arguments <- .get_scheduler_arguments(job)
+  if (scheduler_name == "local") {
+    scheduler_arguments <- character(0)
+  } else {
+    scheduler_arguments <- .get_scheduler_arguments(job)
+  }
 
   # gather env variables for submission
   env_variables <- .get_env_variables(job)
+
+  # gather submission control arguments
+  submit_control <- .get_submit_control(job)
+
+  # retrieve system file for running job
+  submit_system_file <- .get_system_file(
+    file_type = "submit",
+    scheduler_name = job@scheduler@scheduler_name,
+    job_language = job@input@language
+  )
 
   # store compiled information in job object
   job@.compiled <- class_pb_compiled(
     env_variables = env_variables,
-    scheduler_arguments = scheduler_arguments
-  )
-  # re-lock job object
-  if (has_lock) job@.locked <- TRUE
-
-  return(job)
-}
-
-.compile_job_local <- function(job) {
-  # unlock if necessary
-  has_lock <- ".locked" %in% S7::prop_names(job)
-  if (has_lock) job@.locked <- FALSE
-
-  # gather env variables for submission
-  env_variables <- .get_env_variables(job)
-
-  # store compiled information in job object
-  job@.compiled <- class_pb_compiled(
-    env_variables = env_variables
+    submit_control = submit_control,
+    submit_system_file = submit_system_file
   )
   # re-lock job object
   if (has_lock) job@.locked <- TRUE
@@ -85,10 +70,6 @@ S7::method(compile_job, class_job) <- function(
   c(
     job_dir = job@job_directory,
     R_HOME = R.home(),
-    submit_system_file = .get_system_file(
-      file_type = "submit",
-      scheduler_name = job@scheduler@scheduler_name
-    ),
     run_system_file = .get_system_file(
       file_type = "run",
       scheduler_name = job@scheduler@scheduler_name,
@@ -113,15 +94,14 @@ S7::method(compile_job, class_job) <- function(
   scheduler_name <- match.arg(scheduler_name)
   job_language <- match.arg(job_language)
 
-  if (scheduler_name == "local") {
-    return(NULL)
-  } else if (file_type == "submit") {
+  if (file_type == "submit") {
     file_name <- switch(
       scheduler_name,
       slurm = "submit_to_slurm.sbatch",
       torque = cli::cli_abort(
         "System files for {.code torque} not yet implemented"
       ),
+      local = "submit_to_local.sh",
       cli::cli_abort(
         "Unsupported scheduler: {scheduler_name}", internal = TRUE
       )
@@ -206,4 +186,15 @@ S7::method(compile_job, class_job) <- function(
   } else {
     return(NULL)
   }
+}
+
+
+#' Interal function to gather control arguments for submission
+#' @noRd
+.get_submit_control <- function(job) {
+  control <- list()
+  if (job@scheduler@scheduler_name != "local") {
+    control$scheduler_arguments <- .get_scheduler_arguments(job)
+  }
+  return(control)
 }

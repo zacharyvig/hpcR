@@ -1,4 +1,4 @@
-test_that("submission succeeds on available scheduler", {
+test_that(".submit_* succeeds on available scheduler", {
   scheduler <- NULL
 
   if (nzchar(Sys.which("sbatch")) && nzchar(Sys.which("sacct"))) {
@@ -70,7 +70,7 @@ test_that("submission succeeds on available scheduler", {
 
 })
 
-test_that("local oneliner submission succeeds", {
+test_that(".submit_to_local oneliner submission succeeds", {
   if (.Platform$OS.type == "windows") {
     testthat::skip("Local scheduler requires UNIX-like shell tools.")
   }

@@ -111,15 +111,9 @@ invoke_system <- function(
   )
   # sometimes the pid file is not in place when file.exists executes --
   # add a bit of time to ensure that it reads
-  wait_time <- repolling_interval <- 0.05
-  max_wait <- 5
-  while(
-    !checkmate::test_file_exists(sub_pid) && wait_time < max_wait
-  ) {
-    Sys.sleep(repolling_interval)
-    wait_time <- wait_time + repolling_interval
-  }
-  job_id <- if (checkmate::test_file_exists(sub_pid)) {
+  wait_for <- function() checkmate::test_file_exists(sub_pid)
+  .wait_until(wait_for, timeout = 5)
+  job_id <- if (wait_for()) {
     Sys.sleep(.1)
     scan(file = sub_pid, what = "char", sep = "\n", quiet = TRUE)
   } else {
