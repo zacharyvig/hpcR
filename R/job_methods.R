@@ -37,6 +37,7 @@
 #' @docType methods
 NULL
 
+#' @export
 submit <- S7::new_generic("submit", "job")
 
 #' @rdname hpcR_methods

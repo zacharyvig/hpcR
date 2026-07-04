@@ -166,8 +166,8 @@ S7::method(compile_job, class_job) <- function(
         .sprintf_null("-N %s", value$n_nodes),
         .sprintf_null("-n %s", value$n_cores),
         .sprintf_null("--time=%s", value$wall_time),
-        .sprintf_null("--mem-per-cpu=%s", value$mem_per_cpu),
-        .sprintf_null("--mem=%s", value$mem_total)
+        .sprintf_null("--mem-per-cpu=%s", value$memory_per_core),
+        .sprintf_null("--mem=%s", value$total_memory)
       ),
       NULL
     )
@@ -178,8 +178,8 @@ S7::method(compile_job, class_job) <- function(
       resources = c(
         .sprintf_null("-l nodes=%s:ppn=%s", value$n_nodes, value$n_cores),
         .sprintf_null("-l walltime=%s", value$wall_time),
-        .sprintf_null("-l pmem=%s", value$mem_per_cpu),
-        .sprintf_null("-l mem=%s", value$mem_total)
+        .sprintf_null("-l pmem=%s", value$memory_per_core),
+        .sprintf_null("-l mem=%s", value$total_memory)
       ),
       NULL
     )

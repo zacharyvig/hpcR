@@ -21,6 +21,42 @@ test_that(".get_scheduler_directive builds scheduler flags", {
     hpcR:::.get_scheduler_directive("torque", "resources", resources_block),
     c("-l nodes=2:ppn=4", "-l walltime=01:00:00")
   )
+
+  total_memory_block <- class_pb_resources(
+    n_nodes = character(0),
+    n_cores = character(0),
+    wall_time = character(0),
+    total_memory = "16G",
+    memory_per_core = character(0)
+  )
+  memory_per_core_block <- class_pb_resources(
+    n_nodes = character(0),
+    n_cores = character(0),
+    wall_time = character(0),
+    total_memory = character(0),
+    memory_per_core = "4G"
+  )
+
+  expect_equal(
+    hpcR:::.get_scheduler_directive("slurm", "resources", total_memory_block),
+    "--mem=16G"
+  )
+  expect_equal(
+    hpcR:::.get_scheduler_directive(
+      "slurm", "resources", memory_per_core_block
+    ),
+    "--mem-per-cpu=4G"
+  )
+  expect_equal(
+    hpcR:::.get_scheduler_directive("torque", "resources", total_memory_block),
+    "-l mem=16G"
+  )
+  expect_equal(
+    hpcR:::.get_scheduler_directive(
+      "torque", "resources", memory_per_core_block
+    ),
+    "-l pmem=4G"
+  )
 })
 
 test_that(".get_scheduler_arguments gathers job directives", {
