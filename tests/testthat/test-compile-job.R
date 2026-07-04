@@ -84,6 +84,11 @@ test_that(".get_system_file resolves bundled system files", {
     scheduler_name = "slurm",
     job_language = "R"
   )
+  torque_submit_file <- hpcR:::.get_system_file(
+    file_type = "submit",
+    scheduler_name = "torque",
+    job_language = "R"
+  )
   run_file <- hpcR:::.get_system_file(
     file_type = "run",
     scheduler_name = "slurm",
@@ -91,6 +96,7 @@ test_that(".get_system_file resolves bundled system files", {
   )
 
   expect_true(file.exists(submit_file))
+  expect_true(file.exists(torque_submit_file))
   expect_true(file.exists(run_file))
 })
 
@@ -148,6 +154,27 @@ test_that(".compile_job stores compiled artifacts", {
   expect_equal(compiled$env_variables, c(foo = "bar"))
   expect_equal(compiled$submit_control$scheduler_arguments, "--job-name=test")
   expect_equal(compiled$submit_system_file, "submit_path")
+})
+
+test_that(".compile_job supports torque submit system file", {
+  tmp_script <- tempfile(fileext = ".R")
+  writeLines("print('ok')", tmp_script)
+
+  job <- rjob("test") +
+    script(tmp_script) +
+    job_directory(tempdir()) +
+    resources(n_nodes = 2, n_cores = 4, wall_time = "01:00:00") +
+    scheduler("torque") +
+    packages(character(0))
+
+  out <- hpcR:::.compile_job(job)
+  compiled <- S7::props(out@.compiled)
+
+  expect_equal(basename(compiled$submit_system_file), "submit_to_torque.pbs")
+  expect_equal(
+    unname(compiled$submit_control$scheduler_arguments),
+    c("-N test", "-l nodes=2:ppn=4", "-l walltime=01:00:00")
+  )
 })
 
 test_that(".compile_job dispatches by scheduler", {

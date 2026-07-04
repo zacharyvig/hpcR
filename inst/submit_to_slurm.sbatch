@@ -10,7 +10,7 @@ IFS=$'\n\t'
 
 export JOB_ID="$SLURM_JOB_ID"
 [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]] && export ARRAY_ID="$SLURM_ARRAY_TASK_ID"
-cd "$SLURM_SUBMIT_DIR"
+cd "${job_dir:-$SLURM_SUBMIT_DIR}"
 
 [[ -n "${shell_code:-}" ]] && eval "$shell_code"
 
@@ -29,4 +29,3 @@ cd "$SLURM_SUBMIT_DIR"
   #--post_subs_r_script "$post_subs_r_script" \
   #--is_post_subs_r_script_tmp "$is_post_subs_r_script_tmp" \
   #--output_rdata_file "$output_rdata_file"
-

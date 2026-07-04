@@ -89,3 +89,70 @@ test_that(".submit_to_local oneliner submission succeeds", {
   expect_true(nzchar(job_id))
 
 })
+
+test_that("local submit system file respects job_directory", {
+  if (.Platform$OS.type == "windows") {
+    testthat::skip("Local scheduler requires UNIX-like shell tools.")
+  }
+
+  job_dir <- normalizePath(withr::local_tempdir(), winslash = "/")
+  tmp_dir <- withr::local_tempdir()
+  script_path <- normalizePath(
+    file.path(tmp_dir, "job.R"), winslash = "/", mustWork = FALSE
+  )
+  output_path <- normalizePath(
+    file.path(tmp_dir, "cwd.txt"), winslash = "/", mustWork = FALSE
+  )
+  quoted_output <- encodeString(output_path, quote = "\"")
+
+  writeLines(
+    sprintf(
+      paste(
+        "writeLines(normalizePath(getwd(), winslash = '/', mustWork = TRUE),",
+        "con = %s)"
+      ),
+      quoted_output
+    ),
+    con = script_path
+  )
+
+  env_variables <- c(
+    job_dir = job_dir,
+    R_HOME = R.home(),
+    run_system_file = hpcR:::.get_system_file(
+      file_type = "run",
+      scheduler_name = "local",
+      job_language = "R"
+    ),
+    input = script_path,
+    scheduler_name = "local",
+    print_session_info = "FALSE",
+    print_environment = "FALSE",
+    packages = ""
+  )
+
+  job_id <- .submit_to_local(
+    input = hpcR:::.get_system_file(
+      file_type = "submit",
+      scheduler_name = "local",
+      job_language = "R"
+    ),
+    input_type = "script",
+    fail_on_error = TRUE,
+    depends_on = NULL,
+    env_variables = env_variables,
+    echo = FALSE
+  )
+
+  .wait_for_job(
+    job_ids = as.character(job_id),
+    repolling_interval = 0.1,
+    max_wait = 10,
+    scheduler_name = "local",
+    quiet = TRUE,
+    stop_on_timeout = TRUE
+  )
+  .wait_until(function() file.exists(output_path), timeout = 5)
+
+  expect_equal(readLines(output_path), job_dir)
+})

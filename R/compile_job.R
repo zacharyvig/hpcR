@@ -98,9 +98,7 @@ S7::method(compile_job, class_job) <- function(
     file_name <- switch(
       scheduler_name,
       slurm = "submit_to_slurm.sbatch",
-      torque = cli::cli_abort(
-        "System files for {.code torque} not yet implemented"
-      ),
+      torque = "submit_to_torque.pbs",
       local = "submit_to_local.sh",
       cli::cli_abort(
         "Unsupported scheduler: {scheduler_name}", internal = TRUE

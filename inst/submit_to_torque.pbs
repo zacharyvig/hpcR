@@ -1,18 +1,23 @@
-#!/bin/sh
+#!/bin/bash
+#PBS -l nodes=1:ppn=4
+#PBS -l walltime=4:00:00
+#PBS -l mem=4G
+
 set -euo pipefail
 IFS=$'\n\t'
 
-export JOBID=$$
+export JOB_ID="${PBS_JOBID:-}"
+[[ -n "${PBS_ARRAYID:-}" ]] && export ARRAY_ID="$PBS_ARRAYID"
+cd "${job_dir:-${PBS_O_WORKDIR:-$PWD}}"
 
 [[ -n "${shell_code:-}" ]] && eval "$shell_code"
-cd "${job_dir:-$PWD}"
 
 "${R_HOME}/bin/Rscript" --vanilla "$run_system_file" \
   --print_session_info "${print_session_info:-FALSE}" \
   --print_environment "${print_environment:-FALSE}" \
   --packages "${packages:-}" \
   --input "${input:-}" \
-  --scheduler_name "${scheduler_name:-slurm}"
+  --scheduler_name "${scheduler_name:-torque}"
   #--input_rdata_file "$input_rdata_file" \
   #--is_r_script_tmp "$is_r_script_tmp" \
   #--wait_for_subs "$wait_for_subs" \
