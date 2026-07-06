@@ -86,6 +86,8 @@ wait_for_job <- function(
   job_complete <- FALSE
   wait_start <- Sys.time()
   return_code <- NULL
+  terminal_statuses <- c("failed", "cancelled", "complete")
+  failure_statuses <- c("failed", "cancelled")
 
   # start main loop
   while (isFALSE(job_complete)) {
@@ -102,7 +104,9 @@ wait_for_job <- function(
 
     if (isFALSE(quiet)) {
       .give_status_update(
-        job_statuses, c("running", "queued", "suspended", "missing")
+        job_statuses, c(
+          "running", "queued", "suspended", "missing", "cancelled"
+        )
       )
     }
     if (wait_total > max_wait) {
@@ -118,7 +122,7 @@ wait_for_job <- function(
         # if not stopping on timeout, return FALSE
         return(FALSE)
       }
-    } else if (all(job_statuses %in% c("failed", "complete"))) {
+    } else if (all(job_statuses %in% terminal_statuses)) {
       # drop out of the loop
       job_complete <- TRUE
       if (isFALSE(quiet)) {
@@ -126,8 +130,9 @@ wait_for_job <- function(
           "All jobs have finished."
         )
       }
-      # if any jobs failed, return FALSE; otherwise return TRUE
-      return_code <- !.give_status_update(job_statuses, "failed")
+      # if any jobs failed or were cancelled, return FALSE; otherwise return TRUE
+      unsuccessful <- .give_status_update(job_statuses, failure_statuses)
+      return_code <- !any(unsuccessful)
     } else {
       # wait and repoll jobs
       Sys.sleep(repolling_interval)

@@ -19,13 +19,15 @@ Imports:
     S7,
     tools,
     methods,
-    utils,
-    withr
+    utils
 Encoding: UTF-8
 LazyData: false
 RoxygenNote: 8.0.0
 Suggests: 
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0)
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Collate: 
     'check_job_status.R'

@@ -17,7 +17,10 @@ test_that(".submit_* succeeds on available scheduler", {
     testthat::skip("Local scheduler requires UNIX-like shell tools.")
   }
 
-  tmp_dir <<- withr::local_tempdir()
+  tmp_dir <- tempfile("hpcr-test-")
+  dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(tmp_dir, recursive = TRUE, force = TRUE), add = TRUE)
+  tmp_dir <- normalizePath(tmp_dir, winslash = "/", mustWork = TRUE)
 
   script_path <- file.path(tmp_dir, "job.R")
   output_path <- file.path(tmp_dir, "job_output.txt")
@@ -95,8 +98,15 @@ test_that("local submit system file respects job_directory", {
     testthat::skip("Local scheduler requires UNIX-like shell tools.")
   }
 
-  job_dir <- normalizePath(withr::local_tempdir(), winslash = "/")
-  tmp_dir <- withr::local_tempdir()
+  job_dir <- tempfile("hpcr-job-dir-")
+  dir.create(job_dir, recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(job_dir, recursive = TRUE, force = TRUE), add = TRUE)
+  job_dir <- normalizePath(job_dir, winslash = "/", mustWork = TRUE)
+
+  tmp_dir <- tempfile("hpcr-test-")
+  dir.create(tmp_dir, recursive = TRUE, showWarnings = FALSE)
+  on.exit(unlink(tmp_dir, recursive = TRUE, force = TRUE), add = TRUE)
+  tmp_dir <- normalizePath(tmp_dir, winslash = "/", mustWork = TRUE)
   script_path <- normalizePath(
     file.path(tmp_dir, "job.R"), winslash = "/", mustWork = FALSE
   )

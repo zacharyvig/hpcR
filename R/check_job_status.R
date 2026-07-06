@@ -235,75 +235,17 @@ get_default_status_columns <- function(scheduler_name) {
   ...
 ) {
 
-  # TORQUE does not keep information about completed jobs available in qstat or
-  # qselect thus, need to log when a job is listed as queued, so that it 'going
-  # missing' is evidence of it being completed
-
-  # Retrieve job lists from Torque scheduler via qselect
-  if (is.null(user)) {
-    user <- "$USER"
-  }
-
-  get_job_ids <- function(status, user) {
-    code <- switch(
-      status,
-      "queued" = "QW",
-      "running" = "EHRT",
-      "complete" = "C"
-    )
-    args <- sprintf("-u %s -s %s", user, code)
-    system2("qselect", args = args, stdout = TRUE)
-  }
-
-  queued_jobs <- get_job_ids("queued", user)
-  running_jobs <- get_job_ids("running", user)
-  complete_jobs <- get_job_ids("complete", user)
-  missing_jobs <- setdiff(
-    job_ids, c(queued_jobs, running_jobs, complete_jobs)
-  ) # missing jobs
-
-  state_labels <- c("queued", "running", "complete", "complete")
-
-  # TORQUE clusters only keep jobs with status C (complete) for a limited period
-  # of time. After that, the job comes back as missing.
-
-  # Because of this, if one job finishes at time X and another finishes at time
-  # Y, job X will be 'missing' if job Y takes a very long time.
-
-  # Thus, we return any missing jobs as complete, which could be problematic if
-  # they are truly missing immediately after submission (as happened with
-  # slurm).
-
-  # Ideally, we would track a job within wait_for_job such that it can be
-  # missing initially, then move into running, then move into complete.
-
-  job_lists <- list(queued_jobs, running_jobs, complete_jobs, missing_jobs)
-
-  create_state_df <- function(job_list, state_label) {
-    if (length(job_list) > 0L) {
-      state <- rep(state_label, length(job_list))
-      data.frame(JobID = job_list, State = state, stringsAsFactors = FALSE)
-    } else {
-      NULL
-    }
-  }
-
-  # Create a data frame for each state
-  state_dfs <- vector("list", length(job_lists))
-  for (i in seq_along(job_lists)) {
-    state_dfs[[i]] <- create_state_df(job_lists[[i]], state_labels[i])
-  }
-
-  # Combine all job states into one data frame
-  state_df <- do.call(rbind, state_dfs)
-
-  if (!is.null(attr(queued_jobs, "status"))) {
-    cli::cli_warn(
-      "qselect call generated non-zero exit status",
+  if (is.null(job_ids)) {
+    cli::cli_abort(
+      "TORQUE status checks require {.code job_ids}",
       call = .call
     )
-    return(data.frame(JobID = job_ids, State = "missing"))
   }
+
+  state_df <- do.call(
+    rbind,
+    lapply(job_ids, .resolve_torque_job_status)
+  )
 
   out <- if (standardize_output) {
     .standardize_statuses(state_df, "torque")
@@ -314,6 +256,119 @@ get_default_status_columns <- function(scheduler_name) {
   #job_state <- sub(".*job_state = ([A-z]).*", "\\1", res, perl = TRUE)
 
   return(out)
+}
+
+#' Internal command wrapper for TORQUE qstat.
+#' @noRd
+.torque_qstat_full <- function(job_id) {
+  suppressWarnings(
+    system2("qstat", args = c("-f", job_id), stdout = TRUE, stderr = TRUE)
+  )
+}
+
+#' Internal command wrapper for TORQUE tracejob.
+#' @noRd
+.torque_tracejob <- function(job_id) {
+  suppressWarnings(
+    system2("tracejob", args = job_id, stdout = TRUE, stderr = TRUE)
+  )
+}
+
+#' Resolve one TORQUE job to hpcR's standardized scheduler states.
+#' @noRd
+.resolve_torque_job_status <- function(job_id) {
+  qstat_output <- .torque_qstat_full(job_id)
+  if (.status_command_succeeded(qstat_output)) {
+    qstat_state <- .parse_torque_qstat_output(qstat_output)
+    if (!identical(qstat_state, "unknown")) {
+      return(
+        data.frame(JobID = job_id, State = qstat_state, stringsAsFactors = FALSE)
+      )
+    }
+  }
+
+  trace_output <- .torque_tracejob(job_id)
+  trace_state <- if (.status_command_succeeded(trace_output)) {
+    .parse_torque_tracejob_output(trace_output)
+  } else {
+    "missing"
+  }
+  data.frame(JobID = job_id, State = trace_state, stringsAsFactors = FALSE)
+}
+
+#' Check whether a scheduler status command returned usable output.
+#' @noRd
+.status_command_succeeded <- function(result) {
+  is.null(attr(result, "status")) && length(result) > 0L
+}
+
+#' Parse qstat -f output into hpcR's standardized states.
+#' @noRd
+.parse_torque_qstat_output <- function(output) {
+  output <- paste(output, collapse = "\n")
+  if (.has_torque_cancel_evidence(output)) return("cancelled")
+
+  job_state <- .parse_torque_field(output, "job_state")
+  exit_status <- .parse_torque_field(output, "exit_status")
+  if (identical(job_state, character(0))) return("unknown")
+
+  state_map <- c(
+    Q = "queued",
+    W = "queued",
+    H = "queued",
+    R = "running",
+    E = "running",
+    S = "suspended",
+    T = "suspended"
+  )
+  if (job_state %in% names(state_map)) {
+    return(unname(state_map[[job_state]]))
+  }
+  if (identical(job_state, "C")) {
+    return(.map_torque_exit_status(exit_status))
+  }
+  "unknown"
+}
+
+#' Parse tracejob output into hpcR's standardized states.
+#' @noRd
+.parse_torque_tracejob_output <- function(output) {
+  output <- paste(output, collapse = "\n")
+  if (.has_torque_cancel_evidence(output)) return("cancelled")
+
+  exit_status <- .parse_torque_field(output, "exit_status")
+  if (!identical(exit_status, character(0))) {
+    return(.map_torque_exit_status(exit_status))
+  }
+
+  "missing"
+}
+
+#' Extract a simple field assignment from TORQUE status output.
+#' @noRd
+.parse_torque_field <- function(output, field) {
+  lines <- unlist(strsplit(output, "\n", fixed = TRUE))
+  pattern <- paste0("^\\s*", field, "\\s*=\\s*([^\\s]+).*$")
+  matched <- grep(pattern, lines, perl = TRUE, ignore.case = TRUE, value = TRUE)
+  if (!length(matched)) {
+    return(character(0))
+  }
+  sub(pattern, "\\1", matched[[1]], perl = TRUE, ignore.case = TRUE)
+}
+
+#' Detect cancellation evidence in TORQUE status/accounting output.
+#' @noRd
+.has_torque_cancel_evidence <- function(output) {
+  grepl("cancel|deleted|removed|qdel", output, ignore.case = TRUE)
+}
+
+#' Map TORQUE terminal exit status to hpcR's standardized states.
+#' @noRd
+.map_torque_exit_status <- function(exit_status) {
+  if (identical(exit_status, character(0))) return("unknown")
+  exit_status <- suppressWarnings(as.integer(exit_status))
+  if (is.na(exit_status)) return("unknown")
+  if (identical(exit_status, 0L)) "complete" else "failed"
 }
 
 
@@ -353,20 +408,16 @@ get_default_status_columns <- function(scheduler_name) {
   result <- suppressWarnings(
     system2(
       "ps", args = paste(job_id_string, user_string, "-o", ps_format),
-      stdout = TRUE
+      stdout = TRUE, stderr = FALSE
     )
   )
 
-  # need to trap result of length 1 (just header row) to avoid data.table bug.
-  if (!is.null(attr(result, "status")) && attr(result, "status") != 0) {
-    header_row <- strsplit(result, "\\s+")[[1]]
-    df <- data.frame(
-      matrix(NA, nrow = length(job_ids), ncol = length(header_row))
-    )
-    names(df) <- header_row
-    df$PID <- as.integer(job_ids)
+  # Need to trap missing processes and header-only output to avoid parser
+  # failures. For local jobs, absence from ps means the process has finished.
+  ps_failed <- !is.null(attr(result, "status")) && attr(result, "status") != 0
+  if (ps_failed || length(result) <= 1L) {
+    df <- .empty_local_status_table(job_ids, columns)
   } else {
-    checkmate::assert_true(length(result) > 1)
     # fread and any other parsing can break down with consecutive spaces in
     # body of output. This happens with lstart and start, avoid these for now.
     # header <- gregexpr("\\b", result[1], perl = T)
@@ -407,6 +458,39 @@ get_default_status_columns <- function(scheduler_name) {
   return(out)
 }
 
+#' Build an empty local status table for PIDs absent from ps output.
+#' @noRd
+.empty_local_status_table <- function(job_ids, columns) {
+  column_names <- vapply(
+    columns,
+    function(column) {
+      switch(
+        column,
+        "user" = "USER",
+        "pid" = "PID",
+        "state" = "STAT",
+        "time" = "TIME",
+        "etime" = "ELAPSED",
+        "%cpu" = "%CPU",
+        "%mem" = "%MEM",
+        "comm" = "COMM",
+        "xstat" = "XSTAT",
+        toupper(column)
+      )
+    },
+    character(1)
+  )
+
+  df <- data.frame(
+    matrix(NA, nrow = length(job_ids), ncol = length(column_names))
+  )
+  names(df) <- column_names
+  if ("PID" %in% names(df)) {
+    df$PID <- as.integer(job_ids)
+  }
+  df
+}
+
 #' Internal function to throw applicable message based on status
 #' @param job_statuses A named vector of job statuses with job IDs as names.
 #' @param status_to_check A vector of statuses to check for in `job_statuses`.
@@ -427,6 +511,7 @@ get_default_status_columns <- function(scheduler_name) {
         "suspended" = "suspended",
         "missing" = "missing from scheduler response",
         "failed" = "failed",
+        "cancelled" = "cancelled",
         cli::cli_abort(
           "Unsupported status: {status}", internal = TRUE
         )

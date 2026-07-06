@@ -1,18 +1,24 @@
 #!/bin/sh
-set -euo pipefail
-IFS=$'\n\t'
+set -eu
 
 export JOBID=$$
 
-[[ -n "${shell_code:-}" ]] && eval "$shell_code"
-cd "${job_dir:-$PWD}"
+if [ -n "${shell_code:-}" ]; then
+  eval "$shell_code"
+fi
 
-"${R_HOME}/bin/Rscript" --vanilla "$run_system_file" \
+: "${R_HOME:?R_HOME is required}"
+: "${run_system_file:?run_system_file is required}"
+: "${input:?input is required}"
+
+cd "${job_dir:-.}"
+
+exec "${R_HOME}/bin/Rscript" --vanilla "$run_system_file" \
   --print_session_info "${print_session_info:-FALSE}" \
   --print_environment "${print_environment:-FALSE}" \
   --packages "${packages:-}" \
   --input "${input:-}" \
-  --scheduler_name "${scheduler_name:-slurm}"
+  --scheduler_name "${scheduler_name:-local}"
   #--input_rdata_file "$input_rdata_file" \
   #--is_r_script_tmp "$is_r_script_tmp" \
   #--wait_for_subs "$wait_for_subs" \
