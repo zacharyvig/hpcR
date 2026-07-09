@@ -1,0 +1,223 @@
+---
+title: "Inspecting and Debugging Submissions"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Inspecting and Debugging Submissions}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette is for diagnosing a job that does not submit, stays queued, or
+does not run as expected. Start with `vignette("introduction", package =
+"hpcR")` for the normal build, submit, and tracking workflow.
+
+The examples below create and compile a job but do not submit work to a local
+shell or cluster scheduler when the vignette is built.
+
+## Build a Job to Inspect
+
+Create a small job specification. Slurm is used here because compilation can
+prepare its scheduler directives without requiring access to a Slurm cluster.
+
+```{r}
+library(hpcR)
+
+job_dir <- tempfile("hpcr-debug-")
+dir.create(job_dir)
+
+script_path <- file.path(job_dir, "analysis.R")
+writeLines("print('analysis complete')", script_path)
+
+debug_job <- rjob("debug_analysis") +
+  script(script_path) +
+  job_directory(job_dir) +
+  scheduler("slurm") +
+  resources(
+    n_nodes = 1,
+    n_cores = 2,
+    wall_time = format_wall_time(minutes = 10),
+    total_memory = "2G"
+  ) +
+  packages("stats")
+
+summary(debug_job)
+```
+
+`summary()` is the first check: it confirms the script, working directory,
+scheduler, and resource requests recorded in the job object. It describes the
+job configuration; it is not a rendered scheduler command.
+
+## Preflight Checks
+
+Check that the submission host can see the script and working directory, and
+that the requested R packages are installed there.
+
+```{r}
+required_packages <- "stats"
+
+c(
+  script_exists = file.exists(script_path),
+  job_directory_exists = dir.exists(job_dir),
+  rscript_available = nzchar(Sys.which("Rscript")),
+  packages_available = all(vapply(
+    required_packages,
+    requireNamespace,
+    logical(1),
+    quietly = TRUE
+  ))
+)
+```
+
+For a cluster job, the script and working directory must also be visible on the
+compute node. Packages must be installed in library paths visible to the R
+process on that node, which can differ from the submission host.
+
+## Package and Library-Path Setup
+
+`packages()` is a declaration and loading interface. It records packages that
+the run wrapper must find and attach. At submission, `hpcR` checks the current
+library search path and exports it as `R_LIBS` to the compute process. If one
+declared package is missing, the job normally fails before sourcing the user
+script.
+
+The run wrapper never installs packages. You can instead request installation
+in the submission session with `install = "ask"` (interactive use) or
+`install = "always"` (non-interactive use). An installation targets one
+writable library, using `R_LIBS_USER` by default or `install_library` when
+specified. Make sure that library is mounted and readable on every compute node
+that can run the job.
+
+For example, this job asks before installing missing packages in a project
+library:
+
+```{r, eval = FALSE}
+debug_job <- debug_job +
+  packages(
+    c("data.table", "stats"),
+    install = "ask",
+    install_library = "/shared/projects/example/R/library"
+  )
+```
+
+Use `r_libraries()` to augment or prioritize the job's effective R library
+search path. This is useful for a site library, for a script that consistently
+uses `pkg::function()` without attaching packages, or for setting a
+cluster-specific user library. Explicit `R_LIBS` paths are prepended to the
+rest of the effective library search path; `R_LIBS_USER` is passed through as
+the R-user-library setting.
+
+```{r, eval = FALSE}
+debug_job <- debug_job +
+  r_libraries(
+    R_LIBS = "/shared/site/R/library",
+    R_LIBS_USER = "~/R/library"
+  )
+```
+
+`r_libraries()` accepts paths without checking that they exist on the
+submission host, because some sites expose compute-node-specific paths. Verify
+those paths in a short test job when they are not shared with the submission
+host. Installation needs a path that is writable from the submission session.
+
+Confirm that the scheduler and accounting commands required by your backend are
+available on the host where you submit:
+
+```{r, eval = FALSE}
+Sys.which(c("sbatch", "sacct"))       # Slurm
+Sys.which(c("qsub", "qstat", "tracejob")) # TORQUE
+```
+
+## Inspect Compiled Metadata
+
+`compile_job()` prepares the bundled submission wrapper, scheduler arguments,
+and runtime environment. It does not submit the job or contact the scheduler.
+
+```{r}
+compiled_job <- compile_job(debug_job)
+```
+
+The compiled metadata is stored in an internal property. It is useful for
+interactive diagnosis, but scripts should not depend on its exact layout; a
+future public submission-plan interface may replace it.
+
+```{r}
+compiled_metadata <- S7::props(compiled_job@.compiled)
+
+compiled_metadata$submit_control$scheduler_arguments
+compiled_metadata$submit_system_file
+compiled_metadata$env_variables[c(
+  "job_dir", "input", "scheduler_name", "packages", "R_LIBS", "R_LIBS_USER"
+)]
+```
+
+For this Slurm job, the scheduler arguments should include the job name, node
+count, core count, wall time, and total memory. The submission system file is
+the package-supplied Slurm wrapper, and the selected environment values show
+the script, working directory, package declaration, and library paths it will
+receive. `R_LIBS_USER` is omitted when it was not explicitly configured.
+
+`summary(compiled_job)` deliberately remains a concise configuration summary.
+It does not print compiled metadata, so use the diagnostic view above only when
+you need to investigate how a job was prepared.
+
+## Submit and Track
+
+Once the preflight checks look correct, submit the configured job. This code is
+not run while the vignette is built because it contacts a real scheduler.
+
+```{r, eval = FALSE}
+job_id <- debug_job |> submit()
+job_id
+```
+
+Use the returned ID to inspect status. `hpcR` standardizes scheduler states
+such as `queued`, `running`, `complete`, `failed`, and `cancelled`.
+
+```{r, eval = FALSE}
+check_job_status(
+  job_ids = job_id,
+  scheduler_name = "slurm"
+)
+
+wait_for_job(
+  job_ids = job_id,
+  scheduler_name = "slurm",
+  repolling_interval = 60,
+  max_wait = 60 * 60
+)
+```
+
+`wait_for_job()` returns `TRUE` when all jobs complete successfully and `FALSE`
+when a tracked job fails or is cancelled. It stops with an error on timeout by
+default.
+
+## Diagnose Common Failures
+
+If submission fails before an ID is returned, confirm that the scheduler
+command is available, that your account is authorized to submit, and that your
+cluster's required settings are present. `rjob()` currently translates job
+name and resource properties into scheduler directives; site-specific options
+such as account, partition, and QoS are not job properties.
+
+If a job stays queued, inspect the scheduler's reason for waiting. Queue policy,
+available resources, requested wall time, and account or partition rules are
+managed by the cluster rather than by `hpcR`.
+
+If a job fails after it starts, inspect the scheduler output and error files
+using the returned job ID. Common causes are an inaccessible script or working
+directory, a package missing on the compute node, or an error raised by the R
+script itself. For a missing package, confirm that it was provisioned before
+submission and that its library path is visible on the compute node. The
+`hpcR` run wrapper echoes sourced R code to standard output, which can help
+identify the failing expression.
+
+For an R-only check before using a scheduler, return to the introduction
+vignette and run the local backend example. It separates R-script and package
+problems from cluster configuration problems.

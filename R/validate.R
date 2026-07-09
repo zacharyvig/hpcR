@@ -118,6 +118,11 @@ S7::method(
         allow_na = TRUE,
         allow_missing = TRUE
       ),
+      r_libraries = list(
+        fail_on_invalid = TRUE,
+        allow_na = TRUE,
+        allow_missing = TRUE
+      ),
       cli::cli_abort("Unknown property: {property}", internal = TRUE)
     )
   } else if (stage == "submit") {
@@ -151,6 +156,11 @@ S7::method(
       # still just warn at submission in case of wrong package install location
       packages = list(
         fail_on_invalid = FALSE,
+        allow_na = TRUE,
+        allow_missing = TRUE
+      ),
+      r_libraries = list(
+        fail_on_invalid = TRUE,
         allow_na = TRUE,
         allow_missing = TRUE
       ),
@@ -503,7 +513,8 @@ S7::method(
     )
   }
   package_names <- value$package_names
-  installation_path <- value$installation_path
+  install <- value$install
+  install_library <- value$install_library
   if (.is_missing(package_names)) {
     if (settings$allow_missing) return(invisible())
     notify("Package names are missing", call = .call)
@@ -514,23 +525,51 @@ S7::method(
   } else if (any(!nzchar(package_names))) {
     notify("Package names cannot be empty strings", call = .call)
   }
-  paths_exist <- vapply(
-    installation_path, checkmate::test_directory_exists, logical(1)
-  )
-  if (all(!paths_exist)) {
+  if (!is.character(install) || length(install) != 1L ||
+      is.na(install) || !install %in% c("never", "ask", "always")) {
     notify(
-      c("None of the specified package installation paths exist:",
-        "{.list {installation_path}}"),
+      "Package installation policy must be one of {.val never}, {.val ask}, or {.val always}",
       call = .call
     )
   }
-  installed <- .packages_installed(package_names, installation_path)
-  if (any(!installed)) {
-    missing_packages <- package_names[!installed]
+  if (length(install_library) &&
+      (!is.character(install_library) || length(install_library) != 1L ||
+       is.na(install_library) || !nzchar(install_library))) {
     notify(
-      c("Requested packages are not installed:", "{.list {missing_packages}}"),
+      "{.code install_library} must be one non-empty path",
       call = .call
     )
+  }
+  return(invisible())
+}
+
+#' Internal R library environment validator
+#' @noRd
+.validate_r_libraries <- function(
+  value, .call = rlang::caller_env(),
+  settings = .get_validator_defaults("r_libraries")
+) {
+  notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
+  items <- names(class_pb_r_libraries@properties)
+  invalid_fields <- setdiff(names(value), items)
+  if (length(invalid_fields)) {
+    cli::cli_abort(
+      c("R libraries has invalid fields:", "{.list {invalid_fields}}"),
+      call = .call
+    )
+  }
+
+  for (field in items) {
+    paths <- value[[field]]
+    if (.is_missing(paths)) {
+      next
+    }
+    if (!is.character(paths) || anyNA(paths) || any(!nzchar(paths))) {
+      notify(
+        "{.field {field}} must be a character vector of non-empty paths",
+        call = .call
+      )
+    }
   }
   return(invisible())
 }

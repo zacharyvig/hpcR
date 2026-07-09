@@ -166,3 +166,47 @@ test_that("local submit system file respects job_directory", {
 
   expect_equal(readLines(output_path), job_dir)
 })
+
+test_that("compiled R jobs receive resolved library paths", {
+  if (.Platform$OS.type == "windows") {
+    testthat::skip("Local scheduler requires UNIX-like shell tools.")
+  }
+
+  job_dir <- tempfile("hpcr-job-dir-")
+  dir.create(job_dir, recursive = TRUE)
+  on.exit(unlink(job_dir, recursive = TRUE, force = TRUE), add = TRUE)
+  job_dir <- normalizePath(job_dir, winslash = "/", mustWork = TRUE)
+
+  custom_lib <- file.path(job_dir, "custom-r-library")
+  dir.create(custom_lib)
+  output_path <- file.path(job_dir, "r-libs.txt")
+  script_path <- file.path(job_dir, "job.R")
+  writeLines(
+    sprintf("writeLines(Sys.getenv('R_LIBS'), %s)",
+            encodeString(output_path, quote = "\"")),
+    script_path
+  )
+
+  job <- rjob("library-paths") +
+    script(script_path) +
+    job_directory(job_dir) +
+    scheduler("local") +
+    packages("stats") +
+    r_libraries(R_LIBS = custom_lib)
+
+  job_id <- submit(job)
+  .wait_for_job(
+    job_ids = as.character(job_id),
+    repolling_interval = 0.1,
+    max_wait = 10,
+    scheduler_name = "local",
+    quiet = TRUE,
+    stop_on_timeout = TRUE
+  )
+  .wait_until(function() file.exists(output_path), timeout = 5)
+
+  expected <- hpcR:::.collapse_r_library_paths(
+    hpcR:::.job_library_paths(job)
+  )
+  expect_equal(readLines(output_path), expected)
+})

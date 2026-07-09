@@ -9,50 +9,74 @@
 #   }
 # })
 
-# load packages
-load_quiet <- function(pkg) {
-  if (!requireNamespace(pkg, quietly = TRUE, warn.conflicts = FALSE)) {
-    install.packages(pkg, quiet = TRUE, repos = "http://cran.us.r-project.org")
+parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
+  out <- list()
+  i <- 1L
+  while (i <= length(args)) {
+    key <- sub("^--", "", args[[i]])
+    if (identical(key, args[[i]])) {
+      i <- i + 1L
+      next
+    }
+
+    if (grepl("=", key, fixed = TRUE)) {
+      key_value <- strsplit(key, "=", fixed = TRUE)[[1]]
+      out[[key_value[[1]]]] <- paste(key_value[-1], collapse = "=")
+      i <- i + 1L
+    } else if (i == length(args) || startsWith(args[[i + 1L]], "--")) {
+      out[[key]] <- "TRUE"
+      i <- i + 1L
+    } else {
+      out[[key]] <- args[[i + 1L]]
+      i <- i + 2L
+    }
   }
-  suppressPackageStartupMessages(
-    library(pkg, quietly = TRUE, warn.conflicts = FALSE, character.only = TRUE)
-  )
+  out
 }
 
-load_quiet("R.utils")
-load_quiet("cli")
-load_quiet("checkmate")
-cli::cli_alert_info(
-  paste("Packages {.pkg R.utils}, {.pkg cli}, and {.pkg checkmate} loaded for",
-        "internal use by {.pkg hpcR}.")
-)
+load_packages <- function(packages) {
+  missing <- packages[!vapply(packages, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(missing)) {
+    stop(
+      sprintf(
+        "Requested package(s) not installed for job: %s",
+        paste(missing, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+  for (pkg in packages) {
+    suppressPackageStartupMessages(
+      library(pkg, quietly = TRUE, warn.conflicts = FALSE, character.only = TRUE)
+    )
+  }
+}
 
 # tracking function
 update_job_status <- function() {}
 
 # read in command line arguments as list (all come in as character)
-args <- R.utils::commandArgs(asValues = TRUE)
+args <- parse_args()
 
-cli::cli_alert_info("Job started at {Sys.time()}")
+message("Job started at ", Sys.time())
 
 #  TODO: status is STARTED
 
 if (isTRUE(as.logical(args$print_session_info))) {
-  cli::cli_progress_step("Printing session info:")
+  message("Printing session info:")
   print(sessionInfo())
   print(Sys.info())
 }
 
 if (isTRUE(as.logical(args$print_environment))) {
-  cli::cli_progress_step("Printing environment:")
+  message("Printing environment:")
   print(Sys.getenv())
 }
 
 if (!is.null(args$packages) && nzchar(args$packages)) {
-  load_quiet("pacman")
   packages <- unlist(strsplit(args$packages, ","))
-  cli::cli_progress_step("Loading R packages:")
-  pacman::p_load(char = trimws(packages))
+  message("Loading R packages:")
+  load_packages(trimws(packages))
 }
 
 # if (!is.null(args$input_rdata_file) && nzchar(args$input_rdata_file)) {
@@ -77,16 +101,16 @@ if (!is.null(args$packages) && nzchar(args$packages)) {
 # }
 
 tryCatch({
-  cli::cli_progress_step("Running R code:")
+  message("Running R code:")
   source(args$input, echo = TRUE, print.eval = TRUE)
-  cli::cli_alert_success("R code executed successfully")
+  message("R code executed successfully")
 },
 error = function(e) {
   # TODO: status is FAILED, cascade is TRUE
-  cli::cli_abort(
-    c("R Code failed to execute! Ending job run.",
-      "x" = "{as.character(e)}"
-    )
+  stop(
+    "R code failed to execute! Ending job run.\n",
+    conditionMessage(e),
+    call. = FALSE
   )
 })
 
@@ -149,7 +173,7 @@ error = function(e) {
 #   )
 # }
 
-cli::cli_alert_success("Job completed at {Sys.time()}")
+message("Job completed at ", Sys.time())
 
 
 # TODO: status is COMPLETED

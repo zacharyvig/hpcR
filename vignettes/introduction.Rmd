@@ -1,0 +1,272 @@
+---
+title: "Introduction to hpcR"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to hpcR}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+`hpcR` provides a small interface for preparing R jobs, submitting them to a
+cluster scheduler, and checking on them after submission. The core workflow is:
+
+1. create an R job with `rjob()`;
+2. add job properties with `+`;
+3. inspect the job with `summary()`;
+4. submit the job with `submit()`;
+5. track it with `check_job_status()` or `wait_for_job()`.
+
+This vignette walks through that workflow with a minimal R script. The examples
+that build and inspect job objects are evaluated when the vignette is built.
+Examples that would submit work to Slurm, TORQUE, or a local shell are shown but
+not run.
+
+## Create a Script
+
+An `hpcR` job usually points to a script that already exists on disk. Here we
+create a small script in a temporary directory so that the rest of the vignette
+has a concrete file to work with.
+
+```{r}
+library(hpcR)
+
+job_dir <- tempfile("hpcr-demo-")
+dir.create(job_dir)
+
+script_path <- file.path(job_dir, "summarize_sleep.R")
+output_path <- file.path(job_dir, "sleep-summary.csv")
+
+writeLines(
+  c(
+    "result <- data.frame(",
+    "  mean_extra = mean(datasets::sleep$extra),",
+    "  n = nrow(datasets::sleep)",
+    ")",
+    sprintf("write.csv(result, %s, row.names = FALSE)", shQuote(output_path))
+  ),
+  con = script_path
+)
+```
+
+## Build a Job
+
+Start with `rjob()` and add properties with `+`. This first job uses the local
+backend so you can run it before connecting to a cluster. Property functions
+are named for the part of the job they update:
+
+- `script()` stores the script path.
+- `job_directory()` stores the working directory for the job.
+- `scheduler()` chooses the execution backend.
+- `resources()` records scheduler resource requests.
+- `packages()` declares packages to load for the job.
+- `r_libraries()` explicitly configures R library search paths when needed.
+
+```{r}
+sleep_job <- rjob("sleep_summary") +
+  script(script_path) +
+  job_directory(job_dir) +
+  scheduler("local") +
+  resources(
+    n_nodes = 1,
+    n_cores = 1,
+    wall_time = format_wall_time(minutes = 10),
+    total_memory = "1G"
+  ) +
+  packages("stats")
+
+sleep_job
+```
+
+The object stores the job specification. It does not submit anything when you
+create or print it.
+
+```{r}
+summary(sleep_job)
+```
+
+## Packages and R Libraries
+
+`packages()` declares packages a job needs. At submission, `hpcR` checks the
+submission session's effective library search path and passes that path to the
+job's R process through `R_LIBS`. The runner then verifies that every declared
+package is available before attaching any of them.
+
+By default, missing packages stop submission with a clear error. Installation
+is never attempted on a compute node. To have the submission session offer to
+install missing packages, set `install = "ask"`; for non-interactive
+submission workflows, use `install = "always"`. Both choices install into one
+writable library, defaulting to `R_LIBS_USER` when it identifies a single path.
+
+For example, this job asks before installing missing packages in a project
+library:
+
+```{r, eval = FALSE}
+analysis_job <- rjob("analysis") +
+  script("/path/to/analysis.R") +
+  job_directory("/path/to/project") +
+  scheduler("slurm") +
+  packages(
+    c("data.table", "targets"),
+    install = "ask",
+    install_library = "/shared/project/R/library"
+  )
+```
+
+Use `r_libraries()` when you need to make an additional library available to
+the submission and compute environments: for example, your cluster requires a
+site library, or a script uses `pkg::function()` without listing that package
+for attachment. Explicit `R_LIBS` paths are searched before paths supplied by
+the submission session's existing R library configuration.
+
+```{r, eval = FALSE}
+analysis_job <- analysis_job +
+  r_libraries(
+    R_LIBS = "/shared/site/R/library",
+    R_LIBS_USER = "~/R/library"
+  )
+```
+
+Both kinds of paths must be visible from the compute node and compatible with
+the R installation used there. Prefer `packages()` for packages that the job
+attaches and pre-submission installation policy; use `r_libraries()` for
+exceptional or broader R-library setup.
+
+## Run Your First Job Locally
+
+On a UNIX-like system, run the job locally to confirm that the script, working
+directory, and package setup are correct. This starts a background process,
+waits for it to finish, and reads the CSV file written by the script.
+
+```{r, eval = FALSE}
+local_job_id <- sleep_job |> submit()
+
+wait_for_job(
+  job_ids = local_job_id,
+  scheduler_name = "local",
+  repolling_interval = 0.1,
+  max_wait = 30
+)
+
+read.csv(output_path)
+```
+
+The final command should show one row with the mean extra sleep and the number
+of observations. On Windows, skip this local step and use the cluster backend
+available in your environment.
+
+## Choose a Scheduler
+
+`hpcR` currently recognizes Slurm, TORQUE, and a local shell backend:
+
+```{r, eval = FALSE}
+scheduler("slurm")   # alias: scheduler("sbatch")
+scheduler("torque")  # alias: scheduler("qsub")
+scheduler("local")   # alias: scheduler("sh")
+```
+
+Use the scheduler name that matches the environment where the R session is
+submitting the job. After the local check succeeds, change the backend for a
+cluster submission:
+
+```{r, eval = FALSE}
+cluster_job <- sleep_job + scheduler("slurm")
+```
+
+## Submit a Job
+
+Use `submit()` for R scripts configured with `rjob()`. `hpcR` then runs the
+script with the appropriate R job wrapper on the selected backend.
+
+```{r, eval = FALSE}
+job_id <- cluster_job |> submit()
+job_id
+```
+
+On a Slurm system this calls `sbatch`; on a TORQUE system it calls `qsub`; with
+the local backend it starts the process locally and returns the process ID.
+
+## Check and Wait for Jobs
+
+After submission, pass the returned job ID to `check_job_status()`:
+
+```{r, eval = FALSE}
+check_job_status(
+  job_ids = job_id,
+  scheduler_name = "slurm"
+)
+```
+
+To pause an R workflow until one or more jobs finish, use `wait_for_job()`:
+
+```{r, eval = FALSE}
+wait_for_job(
+  job_ids = job_id,
+  scheduler_name = "slurm",
+  repolling_interval = 60,
+  max_wait = 60 * 60
+)
+```
+
+`wait_for_job()` is useful in pipeline scripts where a parent R process submits
+work and then needs to wait before continuing.
+
+## Submit Dependent Jobs
+
+For scheduler-level dependencies, use `depends_on` in `submit_job()`. The
+dependency IDs are passed through to the scheduler-specific submission command.
+
+```{r, eval = FALSE}
+first_id <- submit_job(
+  input = "prepare_data.R",
+  input_type = "script",
+  scheduler_name = "slurm"
+)
+
+second_id <- submit_job(
+  input = "fit_model.R",
+  input_type = "script",
+  scheduler_name = "slurm",
+  depends_on = first_id
+)
+```
+
+For local jobs, `depends_on` causes `hpcR` to wait for the dependent process IDs
+before starting the next local job.
+
+## Practical Workflow
+
+A typical script that submits work to a cluster looks like this:
+
+```{r, eval = FALSE}
+library(hpcR)
+
+analysis_job <- rjob("analysis") +
+  script("/path/to/analysis.R") +
+  job_directory("/path/to/project") +
+  scheduler("slurm") +
+  resources(
+    n_nodes = 1,
+    n_cores = 4,
+    wall_time = format_wall_time(hours = 2),
+    total_memory = "16G"
+  ) +
+  packages(c("data.table", "stats"))
+
+summary(analysis_job)
+
+job_id <- submit(analysis_job)
+check_job_status(job_id, scheduler_name = "slurm")
+```
+
+The most important habit is to build and inspect the job before submitting it.
+That keeps the scheduler settings, script path, working directory, and package
+requirements visible in one place. For preflight checks, compiled submission
+metadata, and troubleshooting, see
+`vignette("inspecting-and-debugging-submissions", package = "hpcR")`.

@@ -79,6 +79,10 @@
 #'      Subclass of \code{class_property_block} for storing
 #'      packages needed for the job to run.
 #'    }
+#'    \item{\code{class_pb_r_libraries}}{
+#'      Subclass of \code{class_property_block} for storing R library
+#'      environment settings for the job.
+#'    }
 #'    \item{\code{class_pb_compiled}}{
 #'      Subclass of \code{class_property_block} for storing compiled information
 #'      about the job to pass to submission.
@@ -148,7 +152,17 @@ class_pb_packages <- S7::new_class(
   parent = class_property_block,
   properties = list(
     package_names = S7::class_character,
-    installation_path = S7::class_character
+    install = S7::class_character,
+    install_library = S7::class_character
+  )
+)
+
+class_pb_r_libraries <- S7::new_class(
+  "class_pb_r_libraries",
+  parent = class_property_block,
+  properties = list(
+    r_libs = S7::class_character,
+    r_libs_user = S7::class_character
   )
 )
 
@@ -194,6 +208,7 @@ class_job <- S7::new_class(
     job_directory = guarded("job_directory", S7::class_character),
     resources = guarded("resources", class_pb_resources),
     packages = guarded("packages", class_pb_packages),
+    r_libraries = guarded("r_libraries", class_pb_r_libraries),
     .locked = S7::new_property(
       class = S7::class_logical,
       default = FALSE

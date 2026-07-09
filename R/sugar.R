@@ -51,9 +51,17 @@
 #' be requested per core. This is mutually exclusive with \code{total_memory}.
 #' @param package_names A character vector. The names of packages to be loaded
 #' for the job.
-#' @param installation_path A character vector. The path(s) to the library
-#' where packages are stored. Defaults to \code{.libPaths()}, which should
-#' work most of the time.
+#' @param install Character. Whether to install missing packages before
+#' submission: \code{"never"} (the default), \code{"ask"}, or
+#' \code{"always"}. Installation occurs in the submission R session, never on
+#' the compute node.
+#' @param install_library A single library path for installing missing packages.
+#' If \code{NULL}, \code{R_LIBS_USER} is used. This path must be writable when
+#' an installation is requested.
+#' @param R_LIBS A character vector of library paths to prepend to the job's
+#' \code{R_LIBS} environment variable.
+#' @param R_LIBS_USER A character vector of library paths to set in the job's
+#' \code{R_LIBS_USER} environment variable.
 #' @param print_session_info If \code{TRUE}, print the \code{sessionInfo()} and
 #' \code{Sys.info()} in the output file when the job starts. Useful for
 #' debugging problems with the compute environment or R installation. Default:
@@ -154,12 +162,24 @@ resources <- function(
 
 #' @rdname build_job
 #' @export
-packages <- function(package_names = NULL, installation_path = .libPaths()) {
+packages <- function(package_names = NULL, install = c("never", "ask", "always"), install_library = NULL) {
+  install <- match.arg(install)
   value <- list(
     package_names = as.character(package_names),
-    installation_path = as.character(installation_path)
+    install = install,
+    install_library = as.character(install_library)
   )
   class_job_update(updates = list(packages = value))
+}
+
+#' @rdname build_job
+#' @export
+r_libraries <- function(R_LIBS = NULL, R_LIBS_USER = NULL) {
+  value <- list(
+    r_libs = as.character(R_LIBS),
+    r_libs_user = as.character(R_LIBS_USER)
+  )
+  class_job_update(updates = list(r_libraries = value))
 }
 
 # TODO: add more settings + add validation

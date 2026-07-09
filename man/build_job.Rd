@@ -9,6 +9,7 @@
 \alias{scheduler}
 \alias{resources}
 \alias{packages}
+\alias{r_libraries}
 \alias{settings}
 \title{Build a job to submit to an HPC}
 \usage{
@@ -30,7 +31,13 @@ resources(
   memory_per_core = NULL
 )
 
-packages(package_names = NULL, installation_path = .libPaths())
+packages(
+  package_names = NULL,
+  install = c("never", "ask", "always"),
+  install_library = NULL
+)
+
+r_libraries(R_LIBS = NULL, R_LIBS_USER = NULL)
 
 settings(print_session_info = NULL, print_environment = NULL)
 }
@@ -69,9 +76,20 @@ be requested per core. This is mutually exclusive with \code{total_memory}.}
 \item{package_names}{A character vector. The names of packages to be loaded
 for the job.}
 
-\item{installation_path}{A character vector. The path(s) to the library
-where packages are stored. Defaults to \code{.libPaths()}, which should
-work most of the time.}
+\item{install}{Character. Whether to install missing packages before
+submission: \code{"never"} (the default), \code{"ask"}, or
+\code{"always"}. Installation occurs in the submission R session, never on
+the compute node.}
+
+\item{install_library}{A single library path for installing missing packages.
+If \code{NULL}, \code{R_LIBS_USER} is used. This path must be writable when
+an installation is requested.}
+
+\item{R_LIBS}{A character vector of library paths to prepend to the job's
+\code{R_LIBS} environment variable.}
+
+\item{R_LIBS_USER}{A character vector of library paths to set in the job's
+\code{R_LIBS_USER} environment variable.}
 
 \item{print_session_info}{If \code{TRUE}, print the \code{sessionInfo()} and
 \code{Sys.info()} in the output file when the job starts. Useful for

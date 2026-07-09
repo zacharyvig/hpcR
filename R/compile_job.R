@@ -67,6 +67,14 @@ S7::method(compile_job, class_job) <- function(
 #' optional properties
 #' @noRd
 .get_env_variables <- function(job) {
+  r_lib_paths <- if (length(job@packages@package_names)) {
+    .job_library_paths(job)
+  } else {
+    c(job@r_libraries@r_libs, job@packages@install_library)
+  }
+  r_libs <- .collapse_r_library_paths(r_lib_paths)
+  r_libs_user <- .collapse_r_library_paths(job@r_libraries@r_libs_user)
+
   c(
     job_dir = job@job_directory,
     R_HOME = R.home(),
@@ -79,7 +87,9 @@ S7::method(compile_job, class_job) <- function(
     scheduler_name = job@scheduler@scheduler_name,
     print_session_info = job@.settings@run_settings@print_session_info,
     print_environment = job@.settings@run_settings@print_environment,
-    packages = paste(job@packages@package_names, collapse = ",")
+    packages = paste(job@packages@package_names, collapse = ","),
+    if (nzchar(r_libs)) c(R_LIBS = r_libs),
+    if (nzchar(r_libs_user)) c(R_LIBS_USER = r_libs_user)
   )
 }
 

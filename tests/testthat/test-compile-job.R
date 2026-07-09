@@ -125,6 +125,94 @@ test_that(".get_env_variables collects submission metadata", {
   expect_equal(env_vars[["print_session_info"]], "FALSE")
   expect_equal(env_vars[["print_environment"]], "FALSE")
   expect_equal(env_vars[["packages"]], "stats,utils")
+  expect_equal(
+    env_vars[["R_LIBS"]],
+    hpcR:::.collapse_r_library_paths(hpcR:::.job_library_paths(job))
+  )
+})
+
+test_that(".get_env_variables combines explicit and package library paths", {
+  tmp_script <- tempfile(fileext = ".R")
+  writeLines("print('ok')", tmp_script)
+  explicit_libs <- c("/project/R/library", "/shared/R/library")
+
+  job <- rjob("test") +
+    script(tmp_script) +
+    job_directory(tempdir()) +
+    scheduler("local") +
+    packages("stats") +
+    r_libraries(R_LIBS = explicit_libs, R_LIBS_USER = "~/R/library")
+
+  env_vars <- hpcR:::.get_env_variables(job)
+  expected_r_libs <- hpcR:::.collapse_r_library_paths(
+    hpcR:::.job_library_paths(job)
+  )
+
+  expect_equal(env_vars[["R_LIBS"]], expected_r_libs)
+  expect_equal(env_vars[["R_LIBS_USER"]], "~/R/library")
+})
+
+test_that(".get_env_variables includes an explicit installation library", {
+  tmp_script <- tempfile(fileext = ".R")
+  install_library <- tempfile("hpcr-r-library-")
+  dir.create(install_library)
+  writeLines("print('ok')", tmp_script)
+
+  job <- rjob("test") +
+    script(tmp_script) +
+    job_directory(tempdir()) +
+    scheduler("local") +
+    packages("stats", install_library = install_library)
+
+  env_vars <- hpcR:::.get_env_variables(job)
+  expected_r_libs <- hpcR:::.collapse_r_library_paths(
+    hpcR:::.job_library_paths(job)
+  )
+
+  expect_equal(env_vars[["R_LIBS"]], expected_r_libs)
+})
+
+test_that(".get_env_variables preserves explicit library-path precedence", {
+  old_r_libs <- Sys.getenv("R_LIBS", unset = NA_character_)
+  old_r_libs_user <- Sys.getenv("R_LIBS_USER", unset = NA_character_)
+  on.exit({
+    if (is.na(old_r_libs)) Sys.unsetenv("R_LIBS") else Sys.setenv(R_LIBS = old_r_libs)
+    if (is.na(old_r_libs_user)) Sys.unsetenv("R_LIBS_USER") else Sys.setenv(R_LIBS_USER = old_r_libs_user)
+  }, add = TRUE)
+  Sys.setenv(
+    R_LIBS = paste(c("/env-library", "/shared-library"),
+                   collapse = .Platform$path.sep),
+    R_LIBS_USER = "/environment-user-library"
+  )
+
+  tmp_script <- tempfile(fileext = ".R")
+  writeLines("print('ok')", tmp_script)
+  job <- rjob("test") +
+    script(tmp_script) +
+    job_directory(tempdir()) +
+    scheduler("local") +
+    packages("stats", install_library = "/install-library") +
+    r_libraries(
+      R_LIBS = c("/explicit-library", "/shared-library"),
+      R_LIBS_USER = "/job-user-library"
+    )
+
+  env_vars <- hpcR:::.get_env_variables(job)
+  expected_paths <- c(
+    "/explicit-library",
+    "/shared-library",
+    "/job-user-library",
+    "/install-library",
+    "/env-library",
+    "/environment-user-library",
+    .libPaths()
+  )
+
+  expect_equal(
+    env_vars[["R_LIBS"]],
+    paste(expected_paths, collapse = .Platform$path.sep)
+  )
+  expect_equal(env_vars[["R_LIBS_USER"]], "/job-user-library")
 })
 
 test_that(".compile_job stores compiled artifacts", {

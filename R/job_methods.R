@@ -47,6 +47,8 @@ submit <- S7::new_generic("submit", "job")
 S7::method(submit, class_job) <- function(job, ...) {
   # validate job for submission
   .validate_job(job, stage = "submit", .call = rlang::caller_env())
+  # ensure declared packages are available before compiling the job
+  .prepare_job_packages(job)
   # compile job for submission
   compiled_job <- .compile_job(job)
   # submit job
