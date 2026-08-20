@@ -106,7 +106,7 @@ debug_job <- debug_job +
   )
 ```
 
-Use `r_libraries()` to augment or prioritize the job's effective R library
+Use `libraries()` to augment or prioritize the job's effective R library
 search path. This is useful for a site library, for a script that consistently
 uses `pkg::function()` without attaching packages, or for setting a
 cluster-specific user library. Explicit `R_LIBS` paths are prepended to the
@@ -115,13 +115,13 @@ the R-user-library setting.
 
 ```{r, eval = FALSE}
 debug_job <- debug_job +
-  r_libraries(
+  libraries(
     R_LIBS = "/shared/site/R/library",
     R_LIBS_USER = "~/R/library"
   )
 ```
 
-`r_libraries()` accepts paths without checking that they exist on the
+`libraries()` accepts paths without checking that they exist on the
 submission host, because some sites expose compute-node-specific paths. Verify
 those paths in a short test job when they are not shared with the submission
 host. Installation needs a path that is writable from the submission session.
