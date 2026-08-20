@@ -43,6 +43,7 @@ Collate:
     'submit_job.R'
     'sugar.R'
     'update_job.R'
+    'utils-dependencies.R'
     'utils.R'
     'validate.R'
     'wait_for_job.R'
