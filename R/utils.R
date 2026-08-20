@@ -112,26 +112,26 @@ get_supported_languages <- function() {
 
 #' Collapse R library paths for an R startup environment variable
 #' @noRd
-.collapse_r_library_paths <- function(paths) {
+.collapse_library_paths <- function(paths) {
   paths <- unique(paths[!is.na(paths) & nzchar(paths)])
   paste(paths, collapse = .Platform$path.sep)
 }
 
 #' Expand and remove empty R library paths
 #' @noRd
-.expand_r_library_paths <- function(paths) {
+.expand_library_paths <- function(paths) {
   paths <- paths[!is.na(paths) & nzchar(paths)]
   unique(path.expand(paths))
 }
 
 #' Read R library paths from an environment variable
 #' @noRd
-.environment_r_library_paths <- function(variable) {
+.environment_library_paths <- function(variable) {
   value <- Sys.getenv(variable, unset = "")
   if (!nzchar(value)) {
     return(character(0))
   }
-  .expand_r_library_paths(strsplit(
+  .expand_library_paths(strsplit(
     value, .Platform$path.sep, fixed = TRUE
   )[[1]])
 }
@@ -140,11 +140,17 @@ get_supported_languages <- function() {
 #' @noRd
 .job_library_paths <- function(job) {
   unique(c(
-    .expand_r_library_paths(job@r_libraries@r_libs),
-    .expand_r_library_paths(job@r_libraries@r_libs_user),
-    .expand_r_library_paths(job@packages@install_library),
-    .environment_r_library_paths("R_LIBS"),
-    .environment_r_library_paths("R_LIBS_USER"),
+    .expand_library_paths(job@libraries@job),
+    .expand_library_paths(job@libraries@user),
+    .expand_library_paths(job@packages@install_library),
+    if (identical(job@input@language, "R")) {
+      c(
+        .environment_library_paths("R_LIBS"),
+        .environment_library_paths("R_LIBS_USER")
+      )
+    } else {
+      NULL
+    },
     .libPaths()
   ))
 }
@@ -152,14 +158,16 @@ get_supported_languages <- function() {
 #' Find the default user library configured for package installation
 #' @noRd
 .default_install_library <- function(job) {
-  configured <- .expand_r_library_paths(job@r_libraries@r_libs_user)
+  configured <- .expand_library_paths(job@libraries@user)
   if (length(configured) == 1L) {
     return(configured)
   }
 
-  configured <- .environment_r_library_paths("R_LIBS_USER")
-  if (length(configured) == 1L) {
-    return(configured)
+  if (identical(job@input@language, "R")) {
+    configured <- .environment_library_paths("R_LIBS_USER")
+    if (length(configured) == 1L) {
+      return(configured)
+    }
   }
 
   cli::cli_abort(
@@ -265,4 +273,176 @@ get_supported_languages <- function() {
     Sys.sleep(poll_interval)
   }
   return(invisible(FALSE))
+}
+
+# .parse_alt_args() is not currently used
+# A possible implementation I had tried was for libraries() to accept, e.g.,
+# R_LIBS= as an alternative to job=, but I opted for the strict approach of 
+# not using ... in sugar functions.
+# Here was the idea:
+# dotdotdot <- match.call(expand.dots = FALSE)$...
+# value <- .parse_alt_args(
+#   job = job,
+#   user = user,
+#   site = site,
+#   .dotdotdot = dotdotdot,
+#   .map = c(
+#     R_LIBS = "job",
+#     R_LIBS_USER = "user",
+#     R_LIBS_SITE = "site"
+#   ),
+#   .env = rlang::caller_env(),
+#   .call = rlang::caller_call()
+# )
+
+#' Internal function to parse alternative argument names that are not explicity
+#' defined in the function signature.
+#' @param ... The canonical arguments of the original function.
+#' @param .map A named character vector that maps alternative argument names to
+#' canonical argument names. The names of the vector are the alternative names,
+#' and the values are the canonical names.
+#' @param .dotdotdot A list of alternative arguments passed to the original
+#' function. This is obtained from\code{match.call(expand.dots = FALSE)$...}.
+#' @param .call The call environment of the original function.
+#' @param .env The environment in which to evaluate the alternative arguments.
+#' @noRd
+.parse_alt_args <- function(
+  ..., .map, .dotdotdot, .call = rlang::caller_call(),
+  .env = rlang::caller_env()
+) {
+
+  # function that mimics base R behavior for unused arguments
+  stop_unused_args <- function(dots, idx) {
+    n <- length(idx)
+    pieces <- vapply(
+      idx,
+      function(i) {
+        nm <- names(dots)[[i]]
+        val <- paste(deparse(dots[[i]], width.cutoff = 60), collapse = "")
+        if (is.null(nm) || identical(nm, "")) {
+          val
+        } else {
+          paste0(nm, " = ", val)
+        }
+      },
+      character(1)
+    )
+    if (n == 1) {
+      stop("unused argument (", pieces, ")", call. = FALSE)
+    } else {
+      stop(
+        "unused arguments (", paste(pieces, collapse = ", "), ")",
+        call. = FALSE
+      )
+    }
+  }
+
+  # function that mimics base R behavior for multiple arguments w/ same name
+  stop_multiple_actual_args <- function(arg, call) {
+    stop(
+      simpleError(
+        message = sprintf(
+          'formal argument "%s" matched by multiple actual arguments', arg
+        ),
+        call = call
+      )
+    )
+  }
+
+  eval_dot_arg <- function(dots, i, env) {
+    # If dotdotdot came from match.call(expand.dots = FALSE)$...,
+    # its contents are unevaluated expressions in a pairlist.
+    # If it came from list(...), they are already evaluated.
+    if (typeof(dots) == "pairlist") {
+      eval(dots[[i]], envir = env)
+    } else {
+      dots[[i]]
+    }
+  }
+
+  # validate inputs with internal errors
+  args <- list(...)
+  if (!is.list(args) || is.null(names(args)) || any(names(args) == "")) {
+    cli::cli_abort(
+      "Canonical arguments passed to {.fn .parse_alt_args} must be named.",
+      .internal = TRUE
+    )
+  }
+
+  if (!is.character(.map) || is.null(names(.map)) || any(names(.map) == "")) {
+    cli::cli_abort(
+      "{.arg map} must be a named character vector.",
+      .internal = TRUE
+    )
+  }
+
+  bad_targets <- setdiff(unname(.map), names(args))
+  if (length(bad_targets) > 0) {
+    cli::cli_abort(c(
+      "{.arg map} points to unknown canonical argument{?s}.",
+      "x" = "Unknown canonical argument{?s}: {.arg {bad_targets}}."
+    ), .internal = TRUE)
+  }
+
+  if (is.null(.dotdotdot)) {
+    .dotdotdot <- list()
+  }
+
+  if (!is.list(.dotdotdot)) {
+    cli::cli_abort(
+      "{.arg .dotdotdot} must be a list or pairlist.",
+      .internal = TRUE
+    )
+  }
+
+  if (length(.dotdotdot) == 0) {
+    return(args)
+  }
+
+  # mimic base R behavior for unused or duplicated arguments
+  dot_names <- names(.dotdotdot)
+  if (is.null(dot_names)) {
+    stop_unused_args(.dotdotdot, seq_along(.dotdotdot))
+  }
+
+  unnamed <- which(dot_names == "")
+  if (length(unnamed) > 0) {
+    stop_unused_args(.dotdotdot, unnamed)
+  }
+
+  unknown <- which(!dot_names %in% names(.map))
+  if (length(unknown) > 0) {
+    stop_unused_args(.dotdotdot, unknown)
+  }
+
+  duplicated_aliases <- unique(dot_names[duplicated(dot_names)])
+  if (length(duplicated_aliases) > 0) {
+    stop_multiple_actual_args(duplicated_aliases[1], .call)
+  }
+
+  # map alternative argument names to canonical names and evaluate them
+  for (alias in names(.map)) {
+    alias_index <- match(alias, dot_names)
+
+    if (is.na(alias_index)) {
+      next
+    }
+
+    canonical <- unname(.map[[alias]])
+    alias_value <- eval_dot_arg(.dotdotdot, alias_index, .env)
+
+    # avoid overwriting canonical arguments with alternative arguments
+    if (!is.null(args[[canonical]]) && !is.null(alias_value)) {
+      cli::cli_abort(
+        "Use only one of {.arg {canonical}} or {.arg {alias}}.",
+        call = .call
+      )
+    }
+
+    if (!is.null(alias_value)) {
+      args[[canonical]] <- alias_value
+    }
+  }
+
+  args
 }

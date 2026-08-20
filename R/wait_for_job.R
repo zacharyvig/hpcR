@@ -31,11 +31,8 @@
 #' the timeout is exceeded.
 #'
 #'
-#' @examples
-#' \dontrun{
-#'    wait_for_job(job_ids = "28465826", repolllig_interval = 60L,
-#'                 scheduler = "local", quiet = TRUE)
-#' }
+#' @examplesIf interactive() && nzchar(Sys.which("sacct"))
+#' wait_for_job(job_ids = "28465826", repolling_interval = 60L, quiet = TRUE)
 #'
 #' @name wait_for_job
 #' @export

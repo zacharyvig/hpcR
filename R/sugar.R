@@ -33,6 +33,8 @@
 #' by the HPC.
 #' @param job_directory  A character string. The path to the 'home' directory
 #' for this job.
+#' @param create A logical. If \code{TRUE}, the job directory will be created if
+#' it does not exist. Default: \code{FALSE}.
 #' @param scheduler_name A character string. The scheduler to be used for this
 #' job. Options are 'slurm' (or 'sbatch'), 'torque' (or 'qsub'), or 'local'
 #' (or 'sh').
@@ -56,12 +58,16 @@
 #' \code{"always"}. Installation occurs in the submission R session, never on
 #' the compute node.
 #' @param install_library A single library path for installing missing packages.
-#' If \code{NULL}, \code{R_LIBS_USER} is used. This path must be writable when
-#' an installation is requested.
-#' @param R_LIBS A character vector of library paths to prepend to the job's
-#' \code{R_LIBS} environment variable.
-#' @param R_LIBS_USER A character vector of library paths to set in the job's
-#' \code{R_LIBS_USER} environment variable.
+#' For R jobs, if \code{NULL}, \code{R_LIBS_USER} is used. This path must be
+#' writable when an installation is requested.
+#' @param job A character vector of library paths to prepend to the job's
+#' library paths. For R jobs, this is the \code{R_LIBS} environment variable.
+#' @param user A character vector of library paths to store in the job's user
+#' library paths. For R jobs, this is the \code{R_LIBS_USER} environment
+#' variable and is set by default but can be overridden by the user.
+#' @param site A character vector of library paths to store in the job's site
+#' library paths which is usually shared across users in a multi-user
+#' environment. For R jobs, this is the \code{R_LIBS_SITE} environment variable.
 #' @param print_session_info If \code{TRUE}, print the \code{sessionInfo()} and
 #' \code{Sys.info()} in the output file when the job starts. Useful for
 #' debugging problems with the compute environment or R installation. Default:
@@ -71,29 +77,31 @@
 #' useful if certain environment variables are not being found when your job
 #' runs, leading it to fail. Default: \code{FALSE}.
 #'
-#'
 #' @returns A job object with the properties specified by the user.
 #'
 #' @examples
-#' \dontrun{
+#' tmp_script <- tempfile(pattern = "my_script", fileext = ".R")
+#' writeLines("print('ok')", tmp_script)
+#'
 #' my_job <- rjob("my_job") +
-#'    script("path/to/script.R") +
-#'    job_directory("path/to/job_directory") +
-#'    scheduler("slurm") +
-#'    resources(n_nodes = 2, n_cores = 4,
-#'              wall_time = "01:00:00",
-#'              total_memory = "16G") +
-#'    packages(package_names = c("dplyr", "ggplot2"))
-#' }
+#'   script(tmp_script) +
+#'   scheduler("slurm") +
+#'   resources(
+#'     n_nodes = 2,
+#'     n_cores = 4,
+#'     wall_time = "01:00:00"
+#'   )
+#'
+#' my_job
 #' @name build_job
 NULL
 
 #' @rdname build_job
 #' @export
 rjob <- function(job_name = NULL) {
-  j <- class_job()
+  job <- class_job()
   if (!missing(job_name)) {
-    j@job_name <- as.character(job_name)
+    job@job_name <- as.character(job_name)
   }
   input <- class_pb_input(
     input_type = "script",
@@ -101,10 +109,10 @@ rjob <- function(job_name = NULL) {
     extension = "R",
     language = "R"
   )
-  j@input <- input
+  job@input <- input
   # lock object before returning
-  j@.locked <- TRUE
-  return(j)
+  job@.locked <- TRUE
+  job
 }
 
 #' @rdname build_job
@@ -127,14 +135,18 @@ script <- function(script_path = NULL) {
 
 #' @rdname build_job
 #' @export
-job_directory <- function(job_directory = NULL) {
-  class_job_update(updates = list(job_directory = as.character(job_directory)))
+job_directory <- function(job_directory = NULL, create = FALSE) {
+  value <- list(
+    path = as.character(job_directory),
+    create = as.logical(create)
+  )
+  class_job_update(updates = list(job_directory = value))
 }
 
 #' @rdname build_job
 #' @export
-# TODO: add more arguments to this function as needed
 scheduler <- function(scheduler_name = NULL) {
+  # TODO: add more arguments to this function as needed
   value <- list(
     scheduler_name = as.character(
       standardize_scheduler_name(scheduler_name, strict = FALSE)
@@ -146,7 +158,10 @@ scheduler <- function(scheduler_name = NULL) {
 #' @rdname build_job
 #' @export
 resources <- function(
-  n_nodes = NULL, n_cores = NULL, wall_time = NULL, total_memory = NULL,
+  n_nodes = NULL,
+  n_cores = NULL,
+  wall_time = NULL,
+  total_memory = NULL,
   memory_per_core = NULL
 ) {
   value <- list(
@@ -162,11 +177,14 @@ resources <- function(
 
 #' @rdname build_job
 #' @export
-packages <- function(package_names = NULL, install = c("never", "ask", "always"), install_library = NULL) {
-  install <- match.arg(install)
+packages <- function(
+  package_names = NULL,
+  install = NULL,
+  install_library = NULL
+) {
   value <- list(
     package_names = as.character(package_names),
-    install = install,
+    install = as.character(install),
     install_library = as.character(install_library)
   )
   class_job_update(updates = list(packages = value))
@@ -174,24 +192,29 @@ packages <- function(package_names = NULL, install = c("never", "ask", "always")
 
 #' @rdname build_job
 #' @export
-r_libraries <- function(R_LIBS = NULL, R_LIBS_USER = NULL) {
+libraries <- function(
+  job = NULL,
+  user = NULL,
+  site = NULL
+) {
   value <- list(
-    r_libs = as.character(R_LIBS),
-    r_libs_user = as.character(R_LIBS_USER)
+    job = as.character(job),
+    user = as.character(user),
+    site = as.character(site)
   )
-  class_job_update(updates = list(r_libraries = value))
+  class_job_update(updates = list(libraries = value))
 }
 
-# TODO: add more settings + add validation
+# TODO: add more settings
 #' @rdname build_job
 #' @export
-settings <- function(print_session_info = NULL, print_environment = NULL) {
-  cli::cli_abort("Validation of settings not yet implemented")
-  value <- list(
-    run_settings = list(
-      print_session_info = as.logical(print_session_info),
-      print_environment = as.logical(print_environment)
-    )
+settings <- function(
+  print_session_info = NULL,
+  print_environment = NULL
+) {
+  run_settings = list(
+    print_session_info = print_session_info,
+    print_environment = print_environment
   )
-  class_job_update(updates = list(.settings = value))
+  class_job_update(updates = list(.run_settings = run_settings))
 }

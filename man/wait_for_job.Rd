@@ -53,9 +53,7 @@ Note that for the \code{scheduler} argument, 'torque' and 'qsub' are aliases;
 'slurm' and 'sbatch' are aliases, and 'sh' and 'local' are aliases.
 }
 \examples{
-\dontrun{
-   wait_for_job(job_ids = "28465826", repolllig_interval = 60L,
-                scheduler = "local", quiet = TRUE)
-}
-
+\dontshow{if (interactive() && nzchar(Sys.which("sacct"))) withAutoprint(\{ # examplesIf}
+wait_for_job(job_ids = "28465826", repolling_interval = 60L, quiet = TRUE)
+\dontshow{\}) # examplesIf}
 }

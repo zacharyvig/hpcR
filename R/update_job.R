@@ -29,8 +29,7 @@ S7::method(`+`, list(class_job, class_job_update)) <- function(e1, e2) {
 S7::method(
   update_job, list(class_job, class_job_update)
 ) <- function(
-  e1, e2, warn_overwrite = TRUE,
-  use_default_settings = TRUE
+  e1, e2, ...
 ) {
   if (!is_job_update(e2)) {
     # should be handled by dispatch now -- could deprecate
@@ -40,10 +39,7 @@ S7::method(
       internal = TRUE
     )
   }
-  .update_job(
-    e1, e2, warn_overwrite = warn_overwrite,
-    use_default_settings = use_default_settings
-  )
+  .update_job(e1, e2, ...)
 }
 
 
@@ -52,10 +48,15 @@ S7::method(
 #' @param warn_overwrite Whether to warn about overwritten properties
 #' @param .call The calling environment for warning/error messages
 #' @param use_default_settings Whether to use default validation settings
-#' 
+#'
 #' @noRd
-.update_job <- function(e1, e2, warn_overwrite = TRUE,
-                        use_default_settings = TRUE) {
+.update_job <- function(
+  e1, e2,
+  warn_overwrite = TRUE,
+  overwrite = TRUE,
+  use_default_settings = TRUE,
+  skip_validation = FALSE
+) {
   # RHS must be a job update object
   if (is_job_update(e2)) {
     .update_call <- e2@.update_call
@@ -83,25 +84,32 @@ S7::method(
     is_block_update <- is.list(new_value) && is_property_block(old_value)
     if (is.list(new_value) && !is_property_block(old_value)) {
       cli::cli_abort(
-        "Attempting to overwrite a non-list property with a list",
+        "Attempting to overwrite a non-list property with a list in job update",
         internal = TRUE
       )
     }
     # store overwritten properties
     if (is_block_update) {
-      merged <- .merge_property_block(S7::props(old_value), new_value)
+      merged <- .merge_property_block(
+        S7::props(old_value), new_value, overwrite = overwrite
+      )
       if (length(merged$overwritten)) {
         overwritten <- c(overwritten, merged$overwritten)
       }
       new_value <- merged$merged_props
     } else if (length(old_value) && !identical(old_value, new_value)) {
+      if (!overwrite) {
+        nonempty[[property]] <- old_value
+        next
+      }
       overwritten <- c(overwritten, property)
     }
-    # always validate properties
-    validate_property(
-      name = property, value = new_value, .call = .update_call,
-      use_default_settings = use_default_settings
-    )
+    if (!skip_validation) {
+      validate_property(
+        name = property, value = new_value, .call = .update_call,
+        use_default_settings = use_default_settings
+      )
+    }
     # rehydrate property block if applicable
     if (is_block_update) {
       new_value_out <- old_value
@@ -116,20 +124,23 @@ S7::method(
   }
   # update properties
   S7::props(e1) <- nonempty
-  if (warn_overwrite && length(overwritten)) {
+  if (overwrite && warn_overwrite && length(overwritten)) {
     cli::cli_alert_warning(
       "The following properties were overwritten: {.list {overwritten}}"
     )
   }
   if (has_lock) e1@.locked <- TRUE
-  return(e1)
+  e1
 }
 
 #' Internal helper to merge two lists that will be used to update a property
 #' block
 #' @noRd
-.merge_property_block <- function(old_values, new_values,
-                                  .call = rlang::caller_env()) {
+.merge_property_block <- function(
+  old_values, new_values,
+  overwrite = TRUE,
+  .call = rlang::caller_env()
+) {
   # Implementation for merging property blocks
   if (!all(names(new_values) %in% names(old_values))) {
     cli::cli_abort("Job update contains unknown properties", call = .call)
@@ -143,6 +154,10 @@ S7::method(
     old_value <- old_values[[property]]
     new_value <- nonempty[[property]]
     if (length(old_value) && !identical(old_value, new_value)) {
+      if (!overwrite) {
+        nonempty[[property]] <- old_value
+        next
+      }
       overwritten <- c(overwritten, property)
     }
     nonempty[[property]] <- new_value
@@ -150,7 +165,7 @@ S7::method(
   # merge new values into old (to preserve any properties not being updated)
   merged_props <- old_values
   merged_props[names(nonempty)] <- nonempty
-  return(list(merged_props = merged_props, overwritten = overwritten))
+  list(merged_props = merged_props, overwritten = overwritten)
 }
 
 #' Coerce empty atomic values to the correct class of length zero;

@@ -90,7 +90,7 @@ specific arguments as a named list:
 }
 }
 \examples{
-\dontrun{
- job_id <- submit_job(input = "my_script.R", scheduler_name = "slurm")
-}
+\dontshow{if (interactive() && nzchar(Sys.which("sbatch"))) withAutoprint(\{ # examplesIf}
+job_id <- submit_job(input = "my_script.R", scheduler_name = "slurm")
+\dontshow{\}) # examplesIf}
 }

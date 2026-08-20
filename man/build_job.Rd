@@ -9,7 +9,7 @@
 \alias{scheduler}
 \alias{resources}
 \alias{packages}
-\alias{r_libraries}
+\alias{libraries}
 \alias{settings}
 \title{Build a job to submit to an HPC}
 \usage{
@@ -19,7 +19,7 @@ job_name(job_name = NULL)
 
 script(script_path = NULL)
 
-job_directory(job_directory = NULL)
+job_directory(job_directory = NULL, create = FALSE)
 
 scheduler(scheduler_name = NULL)
 
@@ -31,13 +31,9 @@ resources(
   memory_per_core = NULL
 )
 
-packages(
-  package_names = NULL,
-  install = c("never", "ask", "always"),
-  install_library = NULL
-)
+packages(package_names = NULL, install = NULL, install_library = NULL)
 
-r_libraries(R_LIBS = NULL, R_LIBS_USER = NULL)
+libraries(job = NULL, user = NULL, site = NULL)
 
 settings(print_session_info = NULL, print_environment = NULL)
 }
@@ -50,6 +46,9 @@ by the HPC.}
 
 \item{job_directory}{A character string. The path to the 'home' directory
 for this job.}
+
+\item{create}{A logical. If \code{TRUE}, the job directory will be created if
+it does not exist. Default: \code{FALSE}.}
 
 \item{scheduler_name}{A character string. The scheduler to be used for this
 job. Options are 'slurm' (or 'sbatch'), 'torque' (or 'qsub'), or 'local'
@@ -82,14 +81,19 @@ submission: \code{"never"} (the default), \code{"ask"}, or
 the compute node.}
 
 \item{install_library}{A single library path for installing missing packages.
-If \code{NULL}, \code{R_LIBS_USER} is used. This path must be writable when
-an installation is requested.}
+For R jobs, if \code{NULL}, \code{R_LIBS_USER} is used. This path must be
+writable when an installation is requested.}
 
-\item{R_LIBS}{A character vector of library paths to prepend to the job's
-\code{R_LIBS} environment variable.}
+\item{job}{A character vector of library paths to prepend to the job's
+library paths. For R jobs, this is the \code{R_LIBS} environment variable.}
 
-\item{R_LIBS_USER}{A character vector of library paths to set in the job's
-\code{R_LIBS_USER} environment variable.}
+\item{user}{A character vector of library paths to store in the job's user
+library paths. For R jobs, this is the \code{R_LIBS_USER} environment
+variable and is set by default but can be overridden by the user.}
+
+\item{site}{A character vector of library paths to store in the job's site
+library paths which is usually shared across users in a multi-user
+environment. For R jobs, this is the \code{R_LIBS_SITE} environment variable.}
 
 \item{print_session_info}{If \code{TRUE}, print the \code{sessionInfo()} and
 \code{Sys.info()} in the output file when the job starts. Useful for
@@ -131,14 +135,17 @@ group of properties when a collection of properties are related (e.g.,
 \code{resources()} takes arguments \code{n_nodes}, \code{n_cores}, etc.)
 }
 \examples{
-\dontrun{
+tmp_script <- tempfile(pattern = "my_script", fileext = ".R")
+writeLines("print('ok')", tmp_script)
+
 my_job <- rjob("my_job") +
-   script("path/to/script.R") +
-   job_directory("path/to/job_directory") +
-   scheduler("slurm") +
-   resources(n_nodes = 2, n_cores = 4,
-             wall_time = "01:00:00",
-             total_memory = "16G") +
-   packages(package_names = c("dplyr", "ggplot2"))
-}
+  script(tmp_script) +
+  scheduler("slurm") +
+  resources(
+    n_nodes = 2,
+    n_cores = 4,
+    wall_time = "01:00:00"
+  )
+
+my_job
 }

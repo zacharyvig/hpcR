@@ -49,8 +49,7 @@ The function writes temporary stdout/stderr files to determine
 job IDs and error messages.
 }
 \examples{
-\dontrun{
- invoke_system(input = "my_script.R", input_type = "script", where = "local")
-}
-
+\dontshow{if (interactive() && nzchar(Sys.which("sbatch"))) withAutoprint(\{ # examplesIf}
+invoke_system(input = "my_script.R", input_type = "script", where = "hpc")
+\dontshow{\}) # examplesIf}
 }

@@ -46,15 +46,13 @@
 #' returns raw statuses depending on the scheduler. Default: \code{TRUE}.
 #' @param control A list of additional, scheduler-specific arguments. See
 #' Details.
-#' 
+#'
 #' @return A data frame with the status information of the queried job(s).
 #' Columns may vary depending on \code{columns} argument specification in
 #' \code{control}.
 #'
-#' @examples
-#' \dontrun{
-#'   check_job_status(scheduler = "slurm", job_ids = "16346781")
-#' }
+#' @examplesIf interactive() && nzchar(Sys.which("sacct"))
+#' check_job_status(scheduler = "slurm", job_ids = "16346781")
 #'
 #' @name check_job_status
 #' @export
@@ -74,7 +72,7 @@ check_job_status <- function(
   checkmate::assert_string(user, null.ok = TRUE)
   checkmate::assert_flag(standardize_output)
   checkmate::assert_list(control, null.ok = TRUE)
-  if(checkmate::test_true(is.null(job_ids) && is.null(user))) {
+  if (checkmate::test_true(is.null(job_ids) && is.null(user))) {
     cli::cli_abort(
       "Must specify {.code job_ids}, {.code user}, or both"
     )
@@ -89,7 +87,7 @@ check_job_status <- function(
     .call = rlang::caller_env()
   )
 
-  return(out)
+  out
 }
 
 
@@ -137,7 +135,7 @@ check_job_status <- function(
     !!!control
   )
 
-  return(out)
+  out
 
 }
 

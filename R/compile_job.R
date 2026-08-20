@@ -30,6 +30,7 @@ S7::method(compile_job, class_job) <- function(
   if (has_lock) job@.locked <- FALSE
 
   # gather scheduler arguments from job properties
+  # TODO: why isn't scheduler_arguments used right now?
   if (scheduler_name == "local") {
     scheduler_arguments <- character(0)
   } else {
@@ -63,20 +64,19 @@ S7::method(compile_job, class_job) <- function(
 
 #' Internal function to gather environmental variables necessary for job
 #' submission
-#' \code{.null0()} converts empty properties to NULL; only used for
-#' optional properties
 #' @noRd
 .get_env_variables <- function(job) {
-  r_lib_paths <- if (length(job@packages@package_names)) {
+  lib_paths <- if (length(job@packages@package_names)) {
     .job_library_paths(job)
   } else {
-    c(job@r_libraries@r_libs, job@packages@install_library)
+    c(job@libraries@job, job@packages@install_library)
   }
-  r_libs <- .collapse_r_library_paths(r_lib_paths)
-  r_libs_user <- .collapse_r_library_paths(job@r_libraries@r_libs_user)
+  libs <- .collapse_library_paths(lib_paths)
+  libs_user <- .collapse_library_paths(job@libraries@user)
+  libs_site <- .collapse_library_paths(job@libraries@site)
 
   c(
-    job_dir = job@job_directory,
+    job_dir = job@job_directory@path,
     R_HOME = R.home(),
     run_system_file = .get_system_file(
       file_type = "run",
@@ -85,15 +85,16 @@ S7::method(compile_job, class_job) <- function(
     ),
     input = job@input@input_value,
     scheduler_name = job@scheduler@scheduler_name,
-    print_session_info = job@.settings@run_settings@print_session_info,
-    print_environment = job@.settings@run_settings@print_environment,
+    print_session_info = job@.run_settings@print_session_info,
+    print_environment = job@.run_settings@print_environment,
     packages = paste(job@packages@package_names, collapse = ","),
-    if (nzchar(r_libs)) c(R_LIBS = r_libs),
-    if (nzchar(r_libs_user)) c(R_LIBS_USER = r_libs_user)
+    if (nzchar(libs)) c(R_LIBS = libs),
+    if (nzchar(libs_user)) c(R_LIBS_USER = libs_user),
+    if (nzchar(libs_site)) c(R_LIBS_SITE = libs_site)
   )
 }
 
-#' Internal function to retreive system files for submission
+#' Internal function to retrieve system files for submission
 #' @noRd
 .get_system_file <- function(
   file_type = c("submit", "run"),

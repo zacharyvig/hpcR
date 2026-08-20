@@ -36,7 +36,7 @@ test_that("validation warns on invalid resource values", {
 
   expect_error(
     job + resources(wall_time = "not-a-time"),
-    "Wall time",
+    "wall_time",
     fixed = TRUE
   )
 
@@ -56,7 +56,8 @@ test_that("validation warns on invalid scheduler name", {
 })
 
 test_that("packages defer availability checks until submission", {
-  job <- rjob("test") + packages(c("dplyr", "nonexistentpkg123"))
+  job <- rjob("test") +
+    packages(c("dplyr", "nonexistentpkg123"), install = "never")
 
   expect_equal(job@packages@package_names, c("dplyr", "nonexistentpkg123"))
   expect_error(
@@ -66,13 +67,15 @@ test_that("packages defer availability checks until submission", {
   )
 
   expect_error(
-    packages("dplyr", install = "sometimes"),
-    "should be one of",
+    rjob("test") +
+      packages("dplyr", install = "sometimes"),
+    "must be one of",
     fixed = TRUE
   )
 
   expect_error(
-    rjob("test") + packages("dplyr", install_library = c("one", "two")),
+    rjob("test") +
+      packages("dplyr", install = "never", install_library = c("one", "two")),
     "install_library",
     fixed = TRUE
   )
@@ -102,7 +105,8 @@ test_that("package preflight installs only when explicitly requested", {
     .package = "utils"
   )
 
-  expect_no_error(hpcR:::.prepare_job_packages(job))
+  expect_message(hpcR:::.prepare_job_packages(job),
+                 "Installing missing", fixed = TRUE)
   expect_equal(installed_packages, "examplepkg")
   expect_equal(installed_library, install_library)
 })
@@ -174,9 +178,13 @@ test_that("package preflight reports installation and verification failures", {
     install.packages = function(...) stop("repository unavailable"),
     .package = "utils"
   )
-  expect_error(
-    hpcR:::.prepare_job_packages(job),
-    "Package installation failed",
+  expect_message(
+    expect_error(
+      hpcR:::.prepare_job_packages(job),
+      "Package installation failed",
+      fixed = TRUE
+    ),
+    "Installing missing",
     fixed = TRUE
   )
 
@@ -184,9 +192,13 @@ test_that("package preflight reports installation and verification failures", {
     install.packages = function(...) invisible(NULL),
     .package = "utils"
   )
-  expect_error(
-    hpcR:::.prepare_job_packages(job),
-    "remain unavailable after installation",
+  expect_message(
+    expect_error(
+      hpcR:::.prepare_job_packages(job),
+      "remain unavailable after installation",
+      fixed = TRUE
+    ),
+    "Installing missing",
     fixed = TRUE
   )
 })
@@ -194,7 +206,7 @@ test_that("package preflight reports installation and verification failures", {
 test_that("default installation library prefers one configured user library", {
   configured_user_library <- "~/hpcr-test-library"
   job <- rjob("test") +
-    r_libraries(R_LIBS_USER = configured_user_library)
+    libraries(user = configured_user_library)
 
   expect_equal(
     hpcR:::.default_install_library(job),

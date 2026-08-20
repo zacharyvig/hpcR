@@ -79,7 +79,7 @@
 #'      Subclass of \code{class_property_block} for storing
 #'      packages needed for the job to run.
 #'    }
-#'    \item{\code{class_pb_r_libraries}}{
+#'    \item{\code{class_pb_libraries}}{
 #'      Subclass of \code{class_property_block} for storing R library
 #'      environment settings for the job.
 #'    }
@@ -127,6 +127,15 @@ class_pb_input <- S7::new_class(
   )
 )
 
+class_pb_job_directory <- S7::new_class(
+  "class_pb_job_directory",
+  parent = class_property_block,
+  properties = list(
+    path = S7::class_character,
+    create = S7::class_logical
+  )
+)
+
 class_pb_resources <- S7::new_class(
   "class_pb_resources",
   parent = class_property_block,
@@ -157,12 +166,13 @@ class_pb_packages <- S7::new_class(
   )
 )
 
-class_pb_r_libraries <- S7::new_class(
-  "class_pb_r_libraries",
+class_pb_libraries <- S7::new_class(
+  "class_pb_libraries",
   parent = class_property_block,
   properties = list(
-    r_libs = S7::class_character,
-    r_libs_user = S7::class_character
+    job = S7::class_character,
+    user = S7::class_character,
+    site = S7::class_character
   )
 )
 
@@ -180,22 +190,8 @@ class_pb_run_settings <- S7::new_class(
   "class_pb_run_settings",
   parent = class_property_block,
   properties = list(
-    print_session_info = S7::new_property(
-      class = S7::class_logical,
-      default = FALSE
-    ),
-    print_environment = S7::new_property(
-      class = S7::class_logical,
-      default = FALSE
-    )
-  )
-)
-
-class_pb_settings <- S7::new_class(
-  "class_pb_settings",
-  parent = class_property_block,
-  properties = list(
-    run_settings = class_pb_run_settings
+    print_session_info = S7::class_logical,
+    print_environment = S7::class_logical
   )
 )
 
@@ -205,16 +201,20 @@ class_job <- S7::new_class(
     job_name = guarded("job_name", S7::class_character),
     scheduler = guarded("scheduler", class_pb_scheduler),
     input = guarded("input", class_pb_input),
-    job_directory = guarded("job_directory", S7::class_character),
+    job_directory = guarded("job_directory", class_pb_job_directory),
     resources = guarded("resources", class_pb_resources),
     packages = guarded("packages", class_pb_packages),
-    r_libraries = guarded("r_libraries", class_pb_r_libraries),
+    libraries = guarded("libraries", class_pb_libraries),
     .locked = S7::new_property(
       class = S7::class_logical,
       default = FALSE
     ),
+    .defaulted = S7::new_property(
+      class = S7::class_logical,
+      default = FALSE
+    ),
     .compiled = guarded(".compiled", class_pb_compiled),
-    .settings = guarded(".settings", class_pb_settings)
+    .run_settings = guarded(".run_settings", class_pb_run_settings)
   )
 )
 

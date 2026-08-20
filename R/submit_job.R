@@ -61,10 +61,8 @@
 #'
 #' @return A character string containing the job ID of the scheduled job.
 #'
-#' @examples
-#' \dontrun{
-#'  job_id <- submit_job(input = "my_script.R", scheduler_name = "slurm")
-#' }
+#' @examplesIf interactive() && nzchar(Sys.which("sbatch"))
+#' job_id <- submit_job(input = "my_script.R", scheduler_name = "slurm")
 #' @name submit_job
 #' @export
 submit_job  <- function(

@@ -62,14 +62,21 @@ job objects:
 }
 
 \examples{
-\dontrun{
+tmp_script <- tempfile(pattern = "my_script", fileext = ".R")
+writeLines("print('ok')", tmp_script)
+
 my_job <- rjob("my_job") +
-   script("path/to/script.R") +
-   scheduler("slurm") +
-   resources(n_nodes = 2, n_cores = 4,
-             wall_time = "01:00:00")
-submit(my_job)
+  script(tmp_script) +
+  scheduler("slurm") +
+  resources(
+    n_nodes = 2,
+    n_cores = 4,
+    wall_time = "01:00:00"
+  )
+
 summary(my_job)
+\dontrun{
+submit(my_job)
 }
 
 }

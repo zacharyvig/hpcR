@@ -90,7 +90,7 @@ a collection of S7 subclasses. These include:
      Subclass of \code{class_property_block} for storing
      packages needed for the job to run.
    }
-   \item{\code{class_pb_r_libraries}}{
+   \item{\code{class_pb_libraries}}{
      Subclass of \code{class_property_block} for storing R library
      environment settings for the job.
    }

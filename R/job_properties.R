@@ -15,15 +15,16 @@ read_only <- function(value, class = S7::class_character) {
 #' be set/edited if the `.locked` property is `FALSE`.
 #' @param property The property to be guarded
 #' @param class The class of the property
+#' @param default The default value for the property
 #' @return A guarded S7 property
 #' @noRd
-guarded <- function(property, class) {
+guarded <- function(property, class, default = NULL) {
   S7::new_property(
     class = class,
     setter = function(self, value) {
       if (!S7::prop_exists(self, ".locked")) {
         cli::cli_abort(
-          "{.code .locked} property does not exist in {class}",
+          "{.code .locked} property does not exist in {class(self)}",
           .internal = TRUE
         )
       }

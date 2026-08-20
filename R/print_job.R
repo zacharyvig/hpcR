@@ -9,7 +9,7 @@
     input_value = job@input@input_value,
     input_type = job@input@input_type,
     language = job@input@language,
-    job_directory = job@job_directory,
+    job_directory = job@job_directory@path,
     resources = S7::props(job@resources)
   )
   if (has_lock) job@.locked <- TRUE
@@ -19,8 +19,9 @@
 #' Format a job object for printing
 #' @noRd
 .format_job <- function(job, ...) {
+  job_name <- if (length(job@job_name)) job@job_name else "(no name)"
   cli::cli_format_method({
-    cli::cli_text("<<{.pkg hpcR} Job Object: '{job@job_name}'>>")
+    cli::cli_text("<<{.pkg hpcR} Job Object: '{job_name}'>>")
   })
 }
 
@@ -48,7 +49,9 @@
     cli::cli_text("[", input_value, "]")
     ul_properties <- cli::cli_ul(c(
       .format_summary_row("scheduler", job_summary@scheduler_name),
-      .format_summary_row("job_directory", job_summary@job_directory, "path")
+      .format_summary_row(
+        "job_directory", job_summary@job_directory, format = "path"
+      )
     ))
     cli::cli_li("Resources:")
     ul_resources <- cli::cli_ul(c(

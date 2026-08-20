@@ -24,10 +24,8 @@
 #' @return A character string of the job ID (for HPC submission) or process ID
 #' (for local submission). If submission fails, returns \code{NULL}.
 #'
-#' @examples
-#' \dontrun{
-#'  invoke_system(input = "my_script.R", input_type = "script", where = "local")
-#' }
+#' @examplesIf interactive() && nzchar(Sys.which("sbatch"))
+#' invoke_system(input = "my_script.R", input_type = "script", where = "hpc")
 #'
 #' @name invoke_system
 #' @export

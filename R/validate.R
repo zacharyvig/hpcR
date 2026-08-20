@@ -22,6 +22,7 @@ S7::method(
   name, value, use_default_settings = TRUE, .call = rlang::caller_env(),
   fail_on_invalid = TRUE, allow_na = FALSE, allow_missing = FALSE
 ) {
+  name <- gsub("^\\.", "", name)
   validator <- get(
     paste0(".validate_", name), mode = "function", inherits = TRUE
   )
@@ -118,12 +119,20 @@ S7::method(
         allow_na = TRUE,
         allow_missing = TRUE
       ),
-      r_libraries = list(
+      libraries = list(
         fail_on_invalid = TRUE,
         allow_na = TRUE,
         allow_missing = TRUE
       ),
-      cli::cli_abort("Unknown property: {property}", internal = TRUE)
+      run_settings = list(
+        fail_on_invalid = TRUE,
+        allow_na = TRUE,
+        allow_missing = TRUE
+      ),
+      cli::cli_abort(
+        "Property has no default update validation settings: {property}",
+        internal = TRUE
+      )
     )
   } else if (stage == "submit") {
     switch(
@@ -159,12 +168,20 @@ S7::method(
         allow_na = TRUE,
         allow_missing = TRUE
       ),
-      r_libraries = list(
+      libraries = list(
         fail_on_invalid = TRUE,
         allow_na = TRUE,
         allow_missing = TRUE
       ),
-      cli::cli_abort("Unknown property: {property}", internal = TRUE)
+      run_settings = list(
+        fail_on_invalid = TRUE,
+        allow_na = FALSE,
+        allow_missing = FALSE
+      ),
+      cli::cli_abort(
+        "Property has no default submit validation settings: {property}",
+        internal = TRUE
+      )
     )
   }
 }
@@ -205,6 +222,7 @@ S7::method(
                      call = .call, internal = TRUE)
     }
   }
+  return(invisible())
 }
 
 #' Internal script validator
@@ -217,13 +235,16 @@ S7::method(
   script_path <- value$input_value
   if (.is_missing(script_path)) {
     if (settings$allow_missing) return(invisible())
-    notify("Script is missing", call = .call)
+    notify("{.field script_path} is missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(script_path))) {
     return(invisible())
   } else if (!checkmate::test_string(script_path, min.chars = 1)) {
-    notify("Script must be a single, non-empty character string", call = .call)
+    notify(
+      "{.field script_path} must be a single, non-empty character string",
+      call = .call
+    )
   } else if (!checkmate::test_file_exists(script_path)) {
-    msg <- "Script file does not exist: {.code {script_path}}"
+    msg <- "{.field script_path} file does not exist: {.code {script_path}}"
     if (!settings$fail_on_invalid) {
       msg <- c(msg, "i" = "Did you supply the full path?")
     }
@@ -233,14 +254,16 @@ S7::method(
     ext <- tools::file_ext(script_path)
     if (isFALSE(ext == value$extension)) {
       notify(
-        paste("Script must end in {.code {value$extension}} for",
+        paste("{.field script_path} must end in {.code {value$extension}} for",
               "{.code {value$language}} jobs"),
         call = .call
       )
     }
   }
+  return(invisible())
 }
 
+# TODO: finish oneliner validation
 #' Internal oneliner validator
 #' @noRd
 .validate_oneliner <- function(
@@ -262,19 +285,20 @@ S7::method(
   # warn/error on missing
   if (.is_missing(value)) {
     if (settings$allow_missing) return(invisible())
-    notify("Job name is missing", call = .call)
+    notify("{.field job_name} is missing", call = .call)
     return(invisible())
   } else if (settings$allow_na && isTRUE(is.na(value))) {
     return(invisible())
   } else if (!checkmate::test_string(value, min.chars = 1)) {
-    notify("Job name must be a single, non-empty character string",
+    notify("{.field job_name} must be a single, non-empty character string",
            call = .call)
   } else if (nchar(value) > 15) {
     cli::cli_warn(
-      "Job name may be too long for some schedulers: {.code {value}}",
+      "{.field job_name} may be too long for some schedulers: {.code {value}}",
       call = .call
     )
   }
+  return(invisible())
 }
 
 #' Internal job directory validator
@@ -284,22 +308,24 @@ S7::method(
   settings = .get_validator_defaults("job_directory")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
-  if (.is_missing(value)) {
+  path <- value$path
+  if (.is_missing(path)) {
     if (settings$allow_missing) return(invisible())
-    notify("Job directory is missing", call = .call)
+    notify("{.field job_directory} is missing", call = .call)
     return(invisible())
-  } else if (settings$allow_na && isTRUE(is.na(value))) {
+  } else if (settings$allow_na && isTRUE(is.na(path))) {
     return(invisible())
-  } else if (!checkmate::test_string(value, min.chars = 1)) {
-    notify("Job directory must be a single, non-empty character string",
+  } else if (!checkmate::test_string(path, min.chars = 1)) {
+    notify("{.field job_directory} must be a single, non-empty character string",
            call = .call)
-  } else if (!checkmate::test_directory_exists(value)) {
-    msg <- "Job directory does not exist: {.code {value}}"
+  } else if (!checkmate::test_directory_exists(path)) {
+    msg <- "{.field job_directory} does not exist: {.code {path}}"
     if (settings$fail_on_invalid) {
       msg <- c(msg, "Make sure it exists before submitting the job")
     }
     notify(msg, call = .call)
   }
+  return(invisible())
 }
 
 #' Internal resources validator
@@ -319,14 +345,17 @@ S7::method(
     )
   } else if (length(value$total_memory) &&
                length(value$memory_per_core)) {
-    notify("Total memory and memory per core are mutually exclusive",
-           call = .call)
+    notify(
+      "{.field total_memory} and {.field memory_per_core} are mutually exclusive",
+      call = .call
+    )
   } else {
     for (item in names(value)) {
       fn <- get(paste0(".validate_", item), mode = "function", inherits = TRUE)
       fn(value[[item]], .call = .call, settings = settings)
     }
   }
+  return(invisible())
 }
 
 #' Internal resources validators
@@ -338,19 +367,20 @@ S7::method(
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
     if (settings$allow_missing) return(invisible())
-    notify("Number of nodes is missing", call = .call)
+    notify("{.field n_nodes} is missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(value))) {
     return(invisible())
   } else if (length(value) > 1) {
-    notify("Number of nodes must be a single value", call = .call)
+    notify("{.field n_nodes} must be a single value", call = .call)
   } else if (is.character(value) && !nzchar(value)) {
-    notify("Number of nodes is empty", call = .call)
+    notify("{.field n_nodes} is empty", call = .call)
   } else {
     n_nodes_num <- suppressWarnings(as.numeric(value))
     if (is.na(n_nodes_num) || n_nodes_num <= 0) {
-      notify("Number of nodes must be a positive number", call = .call)
+      notify("{.field n_nodes} must be a positive number", call = .call)
     }
   }
+  return(invisible())
 }
 
 #' Internal resources validators
@@ -362,19 +392,20 @@ S7::method(
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
     if (settings$allow_missing) return(invisible())
-    notify("Number of cores is missing", call = .call)
+    notify("{.field n_cores} is missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(value))) {
     return(invisible())
   } else if (length(value) > 1) {
-    notify("Number of cores must be a single value", call = .call)
+    notify("{.field n_cores} must be a single value", call = .call)
   } else if (is.character(value) && !nzchar(value)) {
-    notify("Number of cores is empty", call = .call)
+    notify("{.field n_cores} is empty", call = .call)
   } else {
     n_cores_num <- suppressWarnings(as.numeric(value))
     if (is.na(n_cores_num) || n_cores_num <= 0) {
-      notify("Number of cores must be a positive number", call = .call)
+      notify("{.field n_cores} must be a positive number", call = .call)
     }
   }
+  return(invisible())
 }
 
 #' Internal resources validators
@@ -386,25 +417,26 @@ S7::method(
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
     if (settings$allow_missing) return(invisible())
-    notify("Wall time is missing", call = .call)
+    notify("{.field wall_time} is missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(value))) {
     return(invisible())
   } else if (length(value) > 1) {
-    notify("Wall time must be a single value", call = .call)
+    notify("{.field wall_time} must be a single value", call = .call)
   } else if (is.character(value) && !nzchar(value)) {
-    notify("Wall time is empty", call = .call)
+    notify("{.field wall_time} is empty", call = .call)
   } else {
     regex <- paste0("^(\\d+-\\d{2}(:\\d{2}(:\\d{2})?)?|",
                     "\\d{1,2}:\\d{2}(:\\d{2})?|\\d+)$")
     wall_time_chr <- suppressWarnings(as.character(value))
     if (!grepl(regex, wall_time_chr)) {
       notify(
-        paste("Wall time must be a character string in the format", 
+        paste("{.field wall_time} must be a character string in the format", 
               "MM[:SS], HH:MM:SS or dd-HH[:MM][:SS]"),
         call = .call
       )
     }
   }
+  return(invisible())
 }
 
 #' Internal resources validators
@@ -416,22 +448,23 @@ S7::method(
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
     if (settings$allow_missing) return(invisible())
-    notify("Total memory is missing", call = .call)
+    notify("{.field total_memory} is missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(value))) {
     return(invisible())
   } else if (length(value) > 1) {
-    notify("Total memory must be a single value", call = .call)
+    notify("{.field total_memory} must be a single value", call = .call)
   } else if (is.numeric(value)) {
-    notify("Total memory must have a unit (e.g., 4G)", call = .call)
+    notify("{.field total_memory} must have a unit (e.g., 4G)", call = .call)
   } else {
     total_memory_chr <- suppressWarnings(as.character(value))
     if (!nzchar(total_memory_chr)) {
-      notify("Total memory is empty", call = .call)
+      notify("{.field total_memory} is empty", call = .call)
     }
     if (!grepl("(K|M|G|T)$", total_memory_chr)) {
-      notify("Total memory must end with K, M, G, or T", call = .call)
+      notify("{.field total_memory} must end with K, M, G, or T", call = .call)
     }
   }
+  return(invisible())
 }
 
 #' Internal resources validators
@@ -443,22 +476,23 @@ S7::method(
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
   if (.is_missing(value)) {
     if (settings$allow_missing) return(invisible())
-    notify("Memory per core is missing", call = .call)
+    notify("{.field memory_per_core} is missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(value))) {
     return(invisible())
   } else if (length(value) > 1) {
-    notify("Memory per core must be a single value", call = .call)
+    notify("{.field memory_per_core} must be a single value", call = .call)
   } else if (is.numeric(value)) {
-    notify("Memory per core must have a unit (e.g., 4G)", call = .call)
+    notify("{.field memory_per_core} must have a unit (e.g., 4G)", call = .call)
   } else {
     memory_per_core_chr <- suppressWarnings(as.character(value))
     if (!nzchar(memory_per_core_chr)) {
-      notify("Memory per core is empty", call = .call)
+      notify("{.field memory_per_core} is empty", call = .call)
     }
     if (!grepl("(K|M|G|T)$", memory_per_core_chr)) {
-      notify("Memory per core must end with K, M, G, or T", call = .call)
+      notify("{.field memory_per_core} must end with K, M, G, or T", call = .call)
     }
   }
+  return(invisible())
 }
 
 #' Internal scheduler validator
@@ -480,20 +514,26 @@ S7::method(
   scheduler_name <- value$scheduler_name
   if (.is_missing(scheduler_name)) {
     if (settings$allow_missing) return(invisible())
-    notify("Scheduler name is missing", call = .call)
+    notify("{.field scheduler_name} is missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(scheduler_name))) {
     return(invisible())
   } else if (!checkmate::test_string(scheduler_name, min.chars = 1)) {
-    notify("Scheduler name must be a single, non-empty character string",
-           call = .call)
+    notify(
+      "{.field scheduler_name} must be a single, non-empty character string",
+      call = .call
+    )
   } else if (
     !checkmate::test_choice(
       standardize_scheduler_name(scheduler_name),
       get_supported_schedulers(include_alias = FALSE)
     )
   ) {
-    notify("Scheduler name invalid or currently not supported", call = .call)
+    notify(
+      "{.field scheduler_name} is invalid or currently not supported",
+      call = .call
+    )
   }
+  return(invisible())
 }
 
 #' Internal packages validator
@@ -515,28 +555,42 @@ S7::method(
   package_names <- value$package_names
   install <- value$install
   install_library <- value$install_library
+  policy_choices <- c("never", "ask", "always")
   if (.is_missing(package_names)) {
     if (settings$allow_missing) return(invisible())
-    notify("Package names are missing", call = .call)
+    notify("{.field package_names} are missing", call = .call)
   } else if (settings$allow_na && isTRUE(is.na(package_names))) {
     return(invisible())
   } else if (!checkmate::test_character(package_names, min.len = 1)) {
-    notify("Package names must be a character vector", call = .call)
+    notify("{.field package_names} must be a character vector", call = .call)
   } else if (any(!nzchar(package_names))) {
-    notify("Package names cannot be empty strings", call = .call)
+    notify("{.field package_names} cannot be empty strings", call = .call)
   }
-  if (!is.character(install) || length(install) != 1L ||
-      is.na(install) || !install %in% c("never", "ask", "always")) {
+  policy_missing_ok <- .is_missing(install) && settings$allow_missing
+  if (policy_missing_ok) {
+    # skip validation of `install` if missing and allowed
+  } else if (!length(install)) {
     notify(
-      "Package installation policy must be one of {.val never}, {.val ask}, or {.val always}",
+      "Package installation policy ({.field install}) is missing",
+      call = .call
+    )
+  } else if (settings$allow_na && isTRUE(is.na(install))) {
+    # NA is an explicitly allowed value. Skip validation of `install`,
+    # but continue so `install_library` is still validated below.
+  } else if (!is.character(install) || length(install) != 1L ||
+               is.na(install) || !install %in% policy_choices) {
+    cli::cli_abort(
+      "Package installation policy ({.field install}) must be one of {.or {policy_choices}}",
       call = .call
     )
   }
-  if (length(install_library) &&
-      (!is.character(install_library) || length(install_library) != 1L ||
-       is.na(install_library) || !nzchar(install_library))) {
+  if (settings$allow_na && isTRUE(is.na(install_library))) {
+  # NA is allowed for `install_library`; skip its validation.
+  } else if (length(install_library) && (!is.character(install_library) ||
+                length(install_library) != 1L || is.na(install_library) ||
+                !nzchar(install_library))) {
     notify(
-      "{.code install_library} must be one non-empty path",
+      "{.field install_library} must be one non-empty path",
       call = .call
     )
   }
@@ -545,20 +599,19 @@ S7::method(
 
 #' Internal R library environment validator
 #' @noRd
-.validate_r_libraries <- function(
+.validate_libraries <- function(
   value, .call = rlang::caller_env(),
-  settings = .get_validator_defaults("r_libraries")
+  settings = .get_validator_defaults("libraries")
 ) {
   notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
-  items <- names(class_pb_r_libraries@properties)
+  items <- names(class_pb_libraries@properties)
   invalid_fields <- setdiff(names(value), items)
   if (length(invalid_fields)) {
     cli::cli_abort(
-      c("R libraries has invalid fields:", "{.list {invalid_fields}}"),
+      c("Libraries has invalid fields:", "{.list {invalid_fields}}"),
       call = .call
     )
   }
-
   for (field in items) {
     paths <- value[[field]]
     if (.is_missing(paths)) {
@@ -567,6 +620,36 @@ S7::method(
     if (!is.character(paths) || anyNA(paths) || any(!nzchar(paths))) {
       notify(
         "{.field {field}} must be a character vector of non-empty paths",
+        call = .call
+      )
+    }
+  }
+  return(invisible())
+}
+
+#' Internal run settings validator
+#' @noRd
+.validate_run_settings <- function(
+  value, .call = rlang::caller_env(),
+  settings = .get_validator_defaults("run_settings")
+) {
+  notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
+  items <- names(class_pb_run_settings@properties)
+  invalid_fields <- setdiff(names(value), items)
+  if (length(invalid_fields)) {
+    cli::cli_abort(
+      c("Run settings has invalid fields:", "{.list {invalid_fields}}"),
+      call = .call
+    )
+  }
+  for (field in items) {
+    val <- value[[field]]
+    if (.is_missing(val)) {
+      next
+    }
+    if (!is.logical(val) || length(val) != 1L || is.na(val)) {
+      notify(
+        "{.field {field}} must be a single logical value",
         call = .call
       )
     }

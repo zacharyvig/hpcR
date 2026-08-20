@@ -68,7 +68,7 @@ test_that(".get_scheduler_arguments gathers job directives", {
     job_directory(tempdir()) +
     resources(n_nodes = 2, n_cores = 4, wall_time = "01:00:00") +
     scheduler("slurm") +
-    packages(character(0))
+    packages(character(0), install = "never")
 
   out <- hpcR:::.get_scheduler_arguments(job)
   out <- unname(out) # remove names for testing
@@ -116,8 +116,8 @@ test_that(".get_env_variables collects submission metadata", {
     job_directory(tempdir()) +
     resources(n_nodes = 2, n_cores = 4, wall_time = "01:00:00") +
     scheduler("slurm") +
-    packages(c("stats", "utils"))
-
+    packages(c("stats", "utils"), install = "never")
+  job <- hpcR:::.hydrate_defaults(job)
   env_vars <- hpcR:::.get_env_variables(job)
 
   expect_equal(env_vars[["run_system_file"]], "run_path")
@@ -127,7 +127,7 @@ test_that(".get_env_variables collects submission metadata", {
   expect_equal(env_vars[["packages"]], "stats,utils")
   expect_equal(
     env_vars[["R_LIBS"]],
-    hpcR:::.collapse_r_library_paths(hpcR:::.job_library_paths(job))
+    hpcR:::.collapse_library_paths(hpcR:::.job_library_paths(job))
   )
 })
 
@@ -140,11 +140,11 @@ test_that(".get_env_variables combines explicit and package library paths", {
     script(tmp_script) +
     job_directory(tempdir()) +
     scheduler("local") +
-    packages("stats") +
-    r_libraries(R_LIBS = explicit_libs, R_LIBS_USER = "~/R/library")
+    packages("stats", install = "never") +
+    libraries(job = explicit_libs, user = "~/R/library")
 
   env_vars <- hpcR:::.get_env_variables(job)
-  expected_r_libs <- hpcR:::.collapse_r_library_paths(
+  expected_r_libs <- hpcR:::.collapse_library_paths(
     hpcR:::.job_library_paths(job)
   )
 
@@ -162,10 +162,10 @@ test_that(".get_env_variables includes an explicit installation library", {
     script(tmp_script) +
     job_directory(tempdir()) +
     scheduler("local") +
-    packages("stats", install_library = install_library)
+    packages("stats", install = "never", install_library = install_library)
 
   env_vars <- hpcR:::.get_env_variables(job)
-  expected_r_libs <- hpcR:::.collapse_r_library_paths(
+  expected_r_libs <- hpcR:::.collapse_library_paths(
     hpcR:::.job_library_paths(job)
   )
 
@@ -191,10 +191,10 @@ test_that(".get_env_variables preserves explicit library-path precedence", {
     script(tmp_script) +
     job_directory(tempdir()) +
     scheduler("local") +
-    packages("stats", install_library = "/install-library") +
-    r_libraries(
-      R_LIBS = c("/explicit-library", "/shared-library"),
-      R_LIBS_USER = "/job-user-library"
+    packages("stats", install = "never", install_library = "/install-library") +
+    libraries(
+      job = c("/explicit-library", "/shared-library"),
+      user = "/job-user-library"
     )
 
   env_vars <- hpcR:::.get_env_variables(job)
@@ -233,7 +233,7 @@ test_that(".compile_job stores compiled artifacts", {
     job_directory(tempdir()) +
     resources(n_nodes = 2, n_cores = 4, wall_time = "01:00:00") +
     scheduler("slurm") +
-    packages(character(0))
+    packages(character(0), install = "never")
 
   out <- hpcR:::.compile_job(job)
 
@@ -253,7 +253,7 @@ test_that(".compile_job supports torque submit system file", {
     job_directory(tempdir()) +
     resources(n_nodes = 2, n_cores = 4, wall_time = "01:00:00") +
     scheduler("torque") +
-    packages(character(0))
+    packages(character(0), install = "never")
 
   out <- hpcR:::.compile_job(job)
   compiled <- S7::props(out@.compiled)
@@ -285,14 +285,14 @@ test_that(".compile_job dispatches by scheduler", {
     job_directory(tempdir()) +
     resources(n_nodes = 2, n_cores = 4, wall_time = "01:00:00") +
     scheduler("slurm") +
-    packages(character(0))
+    packages(character(0), install = "never")
 
   local_job <- rjob("test") +
     script(tmp_script) +
     job_directory(tempdir()) +
     resources(n_nodes = 2, n_cores = 4, wall_time = "01:00:00") +
     scheduler("local") +
-    packages(character(0))
+    packages(character(0), install = "never")
 
   hpcR:::.compile_job(hpc_job)
   hpcR:::.compile_job(local_job)
@@ -309,7 +309,7 @@ test_that(".compile_job rejects unsupported schedulers", {
     job_directory(tempdir()) +
     resources(n_nodes = 2, n_cores = 4, wall_time = "01:00:00") +
     scheduler("slurm") +
-    packages(character(0))
+    packages(character(0), install = "never")
 
   job@.locked <- FALSE
   props <- S7::props(job)

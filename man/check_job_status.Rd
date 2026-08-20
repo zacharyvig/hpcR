@@ -72,8 +72,7 @@ arguments as a named list:
 }
 }
 \examples{
-\dontrun{
-  check_job_status(scheduler = "slurm", job_ids = "16346781")
-}
-
+\dontshow{if (interactive() && nzchar(Sys.which("sacct"))) withAutoprint(\{ # examplesIf}
+check_job_status(scheduler = "slurm", job_ids = "16346781")
+\dontshow{\}) # examplesIf}
 }

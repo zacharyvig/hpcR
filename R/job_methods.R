@@ -21,14 +21,21 @@
 #' }
 #'
 #' @examples
-#' \dontrun{
+#' tmp_script <- tempfile(pattern = "my_script", fileext = ".R")
+#' writeLines("print('ok')", tmp_script)
+#'
 #' my_job <- rjob("my_job") +
-#'    script("path/to/script.R") +
-#'    scheduler("slurm") +
-#'    resources(n_nodes = 2, n_cores = 4,
-#'              wall_time = "01:00:00")
-#' submit(my_job)
+#'   script(tmp_script) +
+#'   scheduler("slurm") +
+#'   resources(
+#'     n_nodes = 2,
+#'     n_cores = 4,
+#'     wall_time = "01:00:00"
+#'   )
+#'
 #' summary(my_job)
+#' \dontrun{
+#' submit(my_job)
 #' }
 #'
 #' @name hpcR_methods
@@ -45,12 +52,14 @@ submit <- S7::new_generic("submit", "job")
 #' @method submit class_job
 #' @export
 S7::method(submit, class_job) <- function(job, ...) {
+  defaulted_job <- .hydrate_defaults(job)
   # validate job for submission
-  .validate_job(job, stage = "submit", .call = rlang::caller_env())
+  .validate_job(defaulted_job, stage = "submit", .call = rlang::caller_env())
   # ensure declared packages are available before compiling the job
-  .prepare_job_packages(job)
+  # TODO generalize this step to "prepare" including other needed steps
+  .prepare_job_packages(defaulted_job)
   # compile job for submission
-  compiled_job <- .compile_job(job)
+  compiled_job <- .compile_job(defaulted_job)
   # submit job
   cli::cli_progress_step(
     "Submitting job '{job@job_name}'"

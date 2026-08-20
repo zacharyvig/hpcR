@@ -192,7 +192,7 @@ test_that("compiled R jobs receive resolved library paths", {
     job_directory(job_dir) +
     scheduler("local") +
     packages("stats") +
-    r_libraries(R_LIBS = custom_lib)
+    libraries(R_LIBS = custom_lib)
 
   job_id <- submit(job)
   .wait_for_job(
@@ -205,7 +205,7 @@ test_that("compiled R jobs receive resolved library paths", {
   )
   .wait_until(function() file.exists(output_path), timeout = 5)
 
-  expected <- hpcR:::.collapse_r_library_paths(
+  expected <- hpcR:::.collapse_library_paths(
     hpcR:::.job_library_paths(job)
   )
   expect_equal(readLines(output_path), expected)
