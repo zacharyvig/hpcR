@@ -91,6 +91,11 @@ test_that(".submit_to_local oneliner submission succeeds", {
 
   expect_true(nzchar(job_id))
 
+  oneliner_job <- oneliner(command, job_name = "test_job")
+  job_id <- submit(oneliner_job)
+
+  expect_true(nzchar(job_id))
+
 })
 
 test_that("local submit system file respects job_directory", {
@@ -192,7 +197,7 @@ test_that("compiled R jobs receive resolved library paths", {
     job_directory(job_dir) +
     scheduler("local") +
     packages("stats") +
-    libraries(R_LIBS = custom_lib)
+    libraries(job = custom_lib)
 
   job_id <- submit(job)
   .wait_for_job(

@@ -23,19 +23,9 @@ S7::method(compile_job, class_job) <- function(
 #' Internal function to compile a job object for submission
 #' @noRd
 .compile_job <- function(job) {
-  scheduler_name <- job@scheduler@scheduler_name
-
   # unlock if necessary
   has_lock <- ".locked" %in% S7::prop_names(job)
   if (has_lock) job@.locked <- FALSE
-
-  # gather scheduler arguments from job properties
-  # TODO: why isn't scheduler_arguments used right now?
-  if (scheduler_name == "local") {
-    scheduler_arguments <- character(0)
-  } else {
-    scheduler_arguments <- .get_scheduler_arguments(job)
-  }
 
   # gather env variables for submission
   env_variables <- .get_env_variables(job)
@@ -44,17 +34,27 @@ S7::method(compile_job, class_job) <- function(
   submit_control <- .get_submit_control(job)
 
   # retrieve system file for running job
-  submit_system_file <- .get_system_file(
-    file_type = "submit",
-    scheduler_name = job@scheduler@scheduler_name,
-    job_language = job@input@language
-  )
+  if (identical(job@input@input_type, "script")) {
+    input <- .get_system_file(
+      file_type = "submit",
+      scheduler_name = job@scheduler@scheduler_name,
+      job_language = job@input@language
+    )
+  } else if (identical(job@input@input_type, "oneliner")) {
+    input <- job@input@input_value
+  } else {
+    cli::cli_abort(
+      "Unknown input type: {.code {job@input@input_type}}",
+      internal = TRUE
+    )
+  }
 
   # store compiled information in job object
   job@.compiled <- class_pb_compiled(
+    input = input,
+    input_type = job@input@input_type,
     env_variables = env_variables,
-    submit_control = submit_control,
-    submit_system_file = submit_system_file
+    submit_control = submit_control
   )
   # re-lock job object
   if (has_lock) job@.locked <- TRUE
@@ -66,21 +66,28 @@ S7::method(compile_job, class_job) <- function(
 #' submission
 #' @noRd
 .get_env_variables <- function(job) {
-  c(
+  vars <- c(
     job_dir = job@job_directory@path,
     R_HOME = R.home(),
-    run_system_file = .get_system_file(
-      file_type = "run",
-      scheduler_name = job@scheduler@scheduler_name,
-      job_language = job@input@language
-    ),
     input = job@input@input_value,
     scheduler_name = job@scheduler@scheduler_name,
     print_session_info = job@.run_settings@print_session_info,
-    print_environment = job@.run_settings@print_environment,
-    packages = paste(job@packages@package_names, collapse = ","),
-    .get_library_env_vars(job)
+    print_environment = job@.run_settings@print_environment
   )
+  # script only environmental variables
+  if (identical(job@input@input_type, "script")) {
+    vars <- c(
+      vars,
+      run_system_file = .get_system_file(
+        file_type = "run",
+        scheduler_name = job@scheduler@scheduler_name,
+        job_language = job@input@language
+      ),
+      packages = paste(job@packages@package_names, collapse = ","),
+      .get_library_env_vars(job)
+    )
+  }
+  return(vars)
 }
 
 #' Internal function to retrieve system files for submission

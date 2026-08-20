@@ -213,9 +213,9 @@ S7::method(
         settings = settings
       )
     } else if (value$input_type == "oneliner") {
-      cli::cli_abort(
-        "Work in progress: oneliner validation not yet implemented",
-        call = .call, internal = TRUE
+      .validate_oneliner(
+        value = value, .call = .call,
+        settings = settings
       )
     } else {
       cli::cli_abort("Unknown input type: {.code {value$input_type}}",
@@ -263,15 +263,26 @@ S7::method(
   return(invisible())
 }
 
-# TODO: finish oneliner validation
 #' Internal oneliner validator
 #' @noRd
 .validate_oneliner <- function(
   value, .call = rlang::caller_env(),
   settings = .get_validator_defaults("oneliner")
 ) {
-  stop("Work in progress: oneliner validation not yet implemented",
-       call. = FALSE)
+  notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
+  oneliner <- value$input_value
+  if (.is_missing(oneliner)) {
+    if (settings$allow_missing) return(invisible())
+    notify("{.field oneliner} is missing", call = .call)
+  } else if (settings$allow_na && isTRUE(is.na(oneliner))) {
+    return(invisible())
+  } else if (!checkmate::test_string(oneliner, min.chars = 1)) {
+    notify(
+      "{.field oneliner} must be a single, non-empty character string",
+      call = .call
+    )
+  }
+  return(invisible())
 }
 
 #' Internal job name validator

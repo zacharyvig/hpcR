@@ -29,6 +29,8 @@
 #'
 #' @param job_name A character string. The name of the job used by the scheduler
 #' and in the job output.
+#' @param oneliner A character string. A one-line command to be executed by the
+#' HPC. This is mutually exclusive with \code{script_path}.
 #' @param script_path A character string. The path to the script to be executed
 #' by the HPC.
 #' @param job_directory  A character string. The path to the 'home' directory
@@ -110,6 +112,29 @@ rjob <- function(job_name = NULL) {
     language = "R"
   )
   job@input <- input
+  # lock object before returning
+  job@.locked <- TRUE
+  job
+}
+
+#' @rdname build_job
+#' @export
+oneliner <- function(oneliner = NULL, job_name = NULL) {
+  job <- class_job()
+  if (!missing(job_name)) {
+    job@job_name <- as.character(job_name)
+  }
+  input <- class_pb_input(
+    input_type = "oneliner",
+    input_value = as.character(oneliner),
+    extension = character(0),
+    language = character(0)
+  )
+  scheduler <- class_pb_scheduler(
+    scheduler_name = "local"
+  )
+  job@input <- input
+  job@scheduler <- scheduler
   # lock object before returning
   job@.locked <- TRUE
   job

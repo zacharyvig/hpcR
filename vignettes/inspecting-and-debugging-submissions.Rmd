@@ -151,7 +151,7 @@ future public submission-plan interface may replace it.
 compiled_metadata <- S7::props(compiled_job@.compiled)
 
 compiled_metadata$submit_control$scheduler_arguments
-compiled_metadata$submit_system_file
+compiled_metadata$input
 compiled_metadata$env_variables[c(
   "job_dir", "input", "scheduler_name", "packages", "R_LIBS", "R_LIBS_USER"
 )]

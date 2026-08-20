@@ -241,7 +241,7 @@ test_that(".compile_job stores compiled artifacts", {
   compiled <- S7::props(out@.compiled)
   expect_equal(compiled$env_variables, c(foo = "bar"))
   expect_equal(compiled$submit_control$scheduler_arguments, "--job-name=test")
-  expect_equal(compiled$submit_system_file, "submit_path")
+  expect_equal(compiled$input, "submit_path")
 })
 
 test_that(".compile_job supports torque submit system file", {
@@ -258,7 +258,7 @@ test_that(".compile_job supports torque submit system file", {
   out <- hpcR:::.compile_job(job)
   compiled <- S7::props(out@.compiled)
 
-  expect_equal(basename(compiled$submit_system_file), "submit_to_torque.pbs")
+  expect_equal(basename(compiled$input), "submit_to_torque.pbs")
   expect_equal(
     unname(compiled$submit_control$scheduler_arguments),
     c("-N test", "-l nodes=2:ppn=4", "-l walltime=01:00:00")

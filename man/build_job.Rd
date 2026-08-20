@@ -3,6 +3,7 @@
 \name{build_job}
 \alias{build_job}
 \alias{rjob}
+\alias{oneliner}
 \alias{job_name}
 \alias{script}
 \alias{job_directory}
@@ -14,6 +15,8 @@
 \title{Build a job to submit to an HPC}
 \usage{
 rjob(job_name = NULL)
+
+oneliner(oneliner = NULL, job_name = NULL)
 
 job_name(job_name = NULL)
 
@@ -40,6 +43,9 @@ settings(print_session_info = NULL, print_environment = NULL)
 \arguments{
 \item{job_name}{A character string. The name of the job used by the scheduler
 and in the job output.}
+
+\item{oneliner}{A character string. A one-line command to be executed by the
+HPC. This is mutually exclusive with \code{script_path}.}
 
 \item{script_path}{A character string. The path to the script to be executed
 by the HPC.}
