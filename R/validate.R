@@ -217,6 +217,11 @@ S7::method(
         value = value, .call = .call,
         settings = settings
       )
+    } else if (value$input_type == "code") {
+      .validate_code(
+        value = value, .call = .call,
+        settings = settings
+      )
     } else {
       cli::cli_abort("Unknown input type: {.code {value$input_type}}",
                      call = .call, internal = TRUE)
@@ -279,6 +284,28 @@ S7::method(
   } else if (!checkmate::test_string(oneliner, min.chars = 1)) {
     notify(
       "{.field oneliner} must be a single, non-empty character string",
+      call = .call
+    )
+  }
+  return(invisible())
+}
+
+#' Internal code validator
+#' @noRd
+.validate_code <- function(
+  value, .call = rlang::caller_env(),
+  settings = .get_validator_defaults("code")
+) {
+  notify <- if (settings$fail_on_invalid) cli::cli_abort else cli::cli_warn
+  code_quo <- value$code_quo
+  if (.is_missing(code_quo)) {
+    if (settings$allow_missing) return(invisible())
+    notify("{.field code} is missing", call = .call)
+  } else if (settings$allow_na && isTRUE(is.na(code_quo))) {
+    return(invisible())
+  } else if (!rlang::is_quosure(code_quo)) {
+    notify(
+      "{.field code} must be code wrapped in curly braces",
       call = .call
     )
   }

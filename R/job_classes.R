@@ -123,7 +123,8 @@ class_pb_input <- S7::new_class(
     input_type = S7::class_character,
     input_value = S7::class_character,
     extension = S7::class_character,
-    language = S7::class_character
+    language = S7::class_character,
+    code_quo = S7::class_any
   )
 )
 
@@ -180,8 +181,8 @@ class_pb_compiled <- S7::new_class(
   "class_pb_compiled",
   parent = class_property_block,
   properties = list(
-    input = S7::class_character,
-    input_type = S7::class_character,
+    submission_input = S7::class_character,
+    submission_input_type = S7::class_character,
     env_variables = S7::class_character,
     submit_control = S7::class_list
   )

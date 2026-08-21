@@ -6,6 +6,7 @@
 \alias{oneliner}
 \alias{job_name}
 \alias{script}
+\alias{code}
 \alias{job_directory}
 \alias{scheduler}
 \alias{resources}
@@ -21,6 +22,8 @@ oneliner(oneliner = NULL, job_name = NULL)
 job_name(job_name = NULL)
 
 script(script_path = NULL)
+
+code(code = NULL)
 
 job_directory(job_directory = NULL, create = FALSE)
 
@@ -45,10 +48,14 @@ settings(print_session_info = NULL, print_environment = NULL)
 and in the job output.}
 
 \item{oneliner}{A character string. A one-line command to be executed by the
-HPC. This is mutually exclusive with \code{script_path}.}
+HPC. This is mutually exclusive with \code{script_path} and \code{code}.}
 
 \item{script_path}{A character string. The path to the script to be executed
-by the HPC.}
+by the HPC. This is mutually exclusive with \code{oneliner} and \code{code}.}
+
+\item{code}{An expression. A block of code wrapped in curly braces
+\code{\{...\}} to be #' #' executed by the HPC. This is mutually exclusive
+with \code{script_path} and \code{oneliner}.}
 
 \item{job_directory}{A character string. The path to the 'home' directory
 for this job.}

@@ -29,10 +29,13 @@
 #'
 #' @param job_name A character string. The name of the job used by the scheduler
 #' and in the job output.
-#' @param oneliner A character string. A one-line command to be executed by the
-#' HPC. This is mutually exclusive with \code{script_path}.
 #' @param script_path A character string. The path to the script to be executed
-#' by the HPC.
+#' by the HPC. This is mutually exclusive with \code{oneliner} and \code{code}.
+#' @param oneliner A character string. A one-line command to be executed by the
+#' HPC. This is mutually exclusive with \code{script_path} and \code{code}.
+#' @param code An expression. A block of code wrapped in curly braces
+#' \code{\{...\}} to be #' #' executed by the HPC. This is mutually exclusive
+#' with \code{script_path} and \code{oneliner}.
 #' @param job_directory  A character string. The path to the 'home' directory
 #' for this job.
 #' @param create A logical. If \code{TRUE}, the job directory will be created if
@@ -101,13 +104,15 @@ NULL
 #' @rdname build_job
 #' @export
 rjob <- function(job_name = NULL) {
+  # wrapper for R-specific jobs (either script or code)
   job <- class_job()
   if (!missing(job_name)) {
     job@job_name <- as.character(job_name)
   }
   input <- class_pb_input(
-    input_type = "script",
+    input_type = character(0),
     input_value = character(0),
+    code_quo = character(0),
     extension = "R",
     language = "R"
   )
@@ -154,6 +159,18 @@ script <- function(script_path = NULL) {
   value <- list(
     input_type = "script",
     input_value = as.character(script_path)
+  )
+  class_job_update(updates = list(input = value))
+}
+
+#' @rdname build_job
+#' @export
+code <- function(code = NULL) {
+  code <- rlang::enquo(code)
+  value <- list(
+    input_type = "code",
+    input_value = character(0),
+    code_quo = code
   )
   class_job_update(updates = list(input = value))
 }
@@ -230,7 +247,6 @@ libraries <- function(
   class_job_update(updates = list(libraries = value))
 }
 
-# TODO: add more settings
 #' @rdname build_job
 #' @export
 settings <- function(

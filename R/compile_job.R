@@ -25,7 +25,19 @@ S7::method(compile_job, class_job) <- function(
 .compile_job <- function(job) {
   # unlock if necessary
   has_lock <- ".locked" %in% S7::prop_names(job)
-  if (has_lock) job@.locked <- FALSE
+  if (has_lock) {
+    old_lock <- job@.locked
+    job@.locked <- FALSE
+    on.exit({
+      job@.locked <- old_lock
+    }, add = TRUE)
+  }
+
+  # if code is supplied, write temp files and add the temp script as the input_value
+  if (identical(job@input@input_type, "code")) {
+    generated_script_path <- .prepare_input_code(job)
+    job@input@input_value <- generated_script_path
+  }
 
   # gather env variables for submission
   env_variables <- .get_env_variables(job)
@@ -34,14 +46,17 @@ S7::method(compile_job, class_job) <- function(
   submit_control <- .get_submit_control(job)
 
   # retrieve system file for running job
-  if (identical(job@input@input_type, "script")) {
-    input <- .get_system_file(
+  input_type <- job@input@input_type
+  if (identical(input_type, "script") || identical(input_type, "code")) {
+    submission_input <- .get_system_file(
       file_type = "submit",
       scheduler_name = job@scheduler@scheduler_name,
       job_language = job@input@language
     )
+    submission_input_type <- "script"
   } else if (identical(job@input@input_type, "oneliner")) {
-    input <- job@input@input_value
+    submission_input <- job@input@input_value
+    submission_input_type <- "oneliner"
   } else {
     cli::cli_abort(
       "Unknown input type: {.code {job@input@input_type}}",
@@ -51,15 +66,17 @@ S7::method(compile_job, class_job) <- function(
 
   # store compiled information in job object
   job@.compiled <- class_pb_compiled(
-    input = input,
-    input_type = job@input@input_type,
+    submission_input = submission_input,
+    submission_input_type = submission_input_type,
     env_variables = env_variables,
     submit_control = submit_control
   )
-  # re-lock job object
-  if (has_lock) job@.locked <- TRUE
 
-  return(job)
+  if (has_lock) {
+    job@.locked <- old_lock
+  }
+
+  job
 }
 
 #' Internal function to gather environmental variables necessary for job
@@ -202,4 +219,152 @@ S7::method(compile_job, class_job) <- function(
     control$scheduler_arguments <- .get_scheduler_arguments(job)
   }
   return(control)
+}
+
+#' Internal function to prepare code input for submission (if supplied)
+#' @noRd
+.prepare_input_code <- function(job) {
+  code_quo <- job@input@code_quo
+  if (!rlang::is_quosure(code_quo)) {
+    cli::cli_abort(
+      "No code provided for job with {.code input_type = 'code'}",
+      internal = TRUE
+    )
+  }
+  # convert quosure to character string
+  code_str <- tryCatch(
+    .deparse_code_quo(code_quo),
+    error = function(e) {
+      cli::cli_abort(
+        "Failed to convert code quosure to a character string.",
+        parent = e
+      )
+    }
+  )
+  generated_script_path <- .generate_staged_script_path(job)
+  tryCatch(
+    writeLines(code_str, generated_script_path, useBytes = TRUE),
+    error = function(e) {
+      cli::cli_abort(
+        "Failed to write code to generated script file: {.file {generated_script_path}}.",
+        parent = e
+      )
+    }
+  )
+  as.character(generated_script_path)
+}
+
+#' Convert a code quosure to script text
+#' @noRd
+.deparse_code_quo <- function(code_quo) {
+  expr <- rlang::quo_get_expr(code_quo)
+
+  # If code was captured as `{ ... }`, remove outer braces for a cleaner script.
+  if (rlang::is_call(expr, "{")) {
+    exprs <- as.list(expr)[-1]
+    lines <- unlist(
+      lapply(exprs, rlang::expr_deparse, width = Inf),
+      use.names = FALSE
+    )
+  } else {
+    lines <- rlang::expr_deparse(expr, width = Inf)
+  }
+
+  paste(lines, collapse = "\n")
+}
+
+.generate_staged_script_path <- function(job) {
+  job_dir <- job@job_directory@path
+  job_name <- if (length(job@job_name)) job@job_name else .get_default_job_name()
+
+  if (!length(job_dir)) {
+    job_dir <- .generate_staging_dir()
+  }
+
+  job_dir <- .normalize_staging_dir(job_dir)
+
+  if (file.access(job_dir, mode = 2) != 0) {
+    cli::cli_abort(
+      c(
+        "Directory for generated script is not writable: {.file {job_dir}}.",
+        "A writable directory is required for jobs with {.code input_type = 'code'}.",
+        "i" = "Please set a writable job directory with {.code job_directory()} or set a writable working directory."
+      )
+    )
+  }
+
+  file.path(
+    job_dir,
+    paste0(
+      ".hpcR_generated_",
+      .sanitize_file_component(job_name),
+      "_",
+      format(Sys.time(), "%Y%m%d%H%M%S"),
+      "_",
+      paste(sample(c(letters, 0:9), 6, replace = TRUE), collapse = ""),
+      ".R"
+    )
+  )
+}
+
+#' Sanitize string for use in generated file names
+#' @noRd
+.sanitize_file_component <- function(x) {
+  x <- as.character(x)
+  x <- gsub("[^A-Za-z0-9_.-]+", "_", x)
+  x <- gsub("^_+|_+$", "", x)
+
+  if (!nzchar(x)) {
+    x <- "job"
+  }
+
+  x
+}
+
+#' Normalize a directory path
+#' @noRd
+.normalize_staging_dir <- function(path, arg = "path", .call = rlang::caller_env()) {
+  tryCatch(
+    normalizePath(path, mustWork = TRUE),
+    error = function(e) {
+      cli::cli_abort(
+        "Failed to normalize directory for generated files: {.file {path}}.",
+        parent = e,
+        call = .call
+      )
+    }
+  )
+}
+
+.generate_staging_dir <- function() {
+  wd <- getwd()
+
+  if (file.access(wd, mode = 2) != 0) {
+    cli::cli_abort(
+      c(
+        "Supplying code directly requires a writable directory for generated files.",
+        "Current working directory is not writable: {.file {wd}}",
+        "i" = "Please set a writable working directory or specify a job directory with {.code job_directory()}")
+    )
+  }
+  
+  dir <- file.path(
+    wd,
+    paste0(".hpcR_generated_", format(Sys.time(), "%Y%m%d%H%M%S"))
+  )
+
+  ok <- dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+
+  if (!isTRUE(ok)) {
+    cli::cli_abort(
+      c(
+        "Failed to create directory for generated script: {.file {dir}}.",
+        "A writable directory is required for jobs with {.code input_type = 'code'}.",
+        "i" = "Please set a writable job directory with {.code job_directory()} or set a writable working directory."
+      )
+    )
+  }
+
+  dir
+
 }

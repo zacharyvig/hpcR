@@ -27,3 +27,9 @@
   )
   class_job_update(updates = defaults)
 }
+
+#' Internal function to set a default job name for use across the package.
+#' @noRd
+.get_default_job_name <- function() {
+  "my_job"
+}

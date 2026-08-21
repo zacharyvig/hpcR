@@ -70,8 +70,8 @@ S7::method(submit, class_job) <- function(job, ...) {
     "Submitting job '{job_name}'"
   )
   out <- .submit_job(
-    input = compiled_job@.compiled@input,
-    input_type = compiled_job@input@input_type,
+    input = compiled_job@.compiled@submission_input,
+    input_type = compiled_job@.compiled@submission_input_type,
     scheduler_name = compiled_job@scheduler@scheduler_name,
     env_variables = compiled_job@.compiled@env_variables,
     control = compiled_job@.compiled@submit_control,
