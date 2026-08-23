@@ -15,5 +15,8 @@ update_job(e1, e2, ...)
 \item{...}{Not currently used}
 }
 \description{
-Incrementally build a job using `+`
+...
+}
+\details{
+...
 }

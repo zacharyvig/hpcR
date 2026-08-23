@@ -46,6 +46,7 @@
 #' returns raw statuses depending on the scheduler. Default: \code{TRUE}.
 #' @param control A list of additional, scheduler-specific arguments. See
 #' Details.
+#' @param .call The calling environment, used for error messages.
 #'
 #' @return A data frame with the status information of the queried job(s).
 #' Columns may vary depending on \code{columns} argument specification in
@@ -61,8 +62,11 @@ check_job_status <- function(
   user = NULL,
   scheduler_name = get_supported_schedulers(),
   standardize_output = TRUE,
-  control = NULL
+  control = NULL,
+  .call = rlang::caller_env()
 ) {
+
+  job_ids <- .job_obj_guard(job_ids, "check_job_status")
 
   scheduler_name <- match.arg(scheduler_name)
   scheduler_name <- standardize_scheduler_name(scheduler_name)
@@ -220,7 +224,7 @@ get_default_status_columns <- function(scheduler_name) {
     merged_df
   }
 
-  return(out)
+  out
 }
 
 #' Internal function for getting TORQUE job stats
@@ -253,7 +257,7 @@ get_default_status_columns <- function(scheduler_name) {
 
   #job_state <- sub(".*job_state = ([A-z]).*", "\\1", res, perl = TRUE)
 
-  return(out)
+  out
 }
 
 #' Internal command wrapper for TORQUE qstat.
@@ -453,7 +457,7 @@ get_default_status_columns <- function(scheduler_name) {
     merged_df
   }
 
-  return(out)
+  out
 }
 
 #' Build an empty local status table for PIDs absent from ps output.
@@ -520,7 +524,7 @@ get_default_status_columns <- function(scheduler_name) {
       out[status] <- TRUE
     }
   }
-  return(invisible(out))
+  invisible(out)
 }
 
 
@@ -604,5 +608,5 @@ get_default_status_columns <- function(scheduler_name) {
       "Unsupported scheduler: {scheduler_name}", internal = TRUE
     )
   }
-  return(state)
+  state
 }

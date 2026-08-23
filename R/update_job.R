@@ -3,6 +3,12 @@
 
 #' @title Incrementally build a job using `+`
 #'
+#' @description
+#' ...
+#'
+#' @details
+#' ...
+#'
 #' @param e1 A class_job object to be updated
 #' @param e2 A class_job_update object containing the updates
 #' @param ... Not currently used
@@ -16,12 +22,6 @@ update_job <- S7::new_generic("update_job", c("e1", "e2"))
 
 
 S7::method(`+`, list(class_job, class_job_update)) <- function(e1, e2) {
-  if (!is_job_update(e2)) {
-    cli::cli_abort(
-      "The right-hand side of {.code +} must be a valid job property statement",
-      call = rlang::caller_env()
-    )
-  }
   .update_job(e1, e2, use_default_settings = TRUE)
 }
 
@@ -31,14 +31,6 @@ S7::method(
 ) <- function(
   e1, e2, ...
 ) {
-  if (!is_job_update(e2)) {
-    # should be handled by dispatch now -- could deprecate
-    cli::cli_abort(
-      paste("The right-hand side of {.fn update_job}",
-            "must be a valid job property statement"),
-      internal = TRUE
-    )
-  }
   .update_job(e1, e2, ...)
 }
 
@@ -74,7 +66,13 @@ S7::method(
   }
   # unlock if necessary
   has_lock <- ".locked" %in% S7::prop_names(e1)
-  if (has_lock) e1@.locked <- FALSE
+  if (has_lock) {
+    old_lock <- e1@.locked
+    e1@.locked <- FALSE
+    on.exit({
+      e1@.locked <- old_lock
+    }, add = TRUE)
+  }
   # only update non-empty properties
   nonempty <- e2[as.logical(vapply(e2, length, integer(1)))]
   overwritten <- c()

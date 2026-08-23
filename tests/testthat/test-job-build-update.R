@@ -1,3 +1,13 @@
+test_that("R job locks after construction", {
+  job <- rjob("test")
+  expect_true(job@.locked)
+})
+
+test_that("R job remains locked after update", {
+  job <- rjob() + job_name("new_name")
+  expect_true(job@.locked)
+})
+
 test_that("job builds and updates with simple properties", {
   tmp_script <- tempfile(fileext = ".R")
   writeLines("print('ok')", tmp_script)

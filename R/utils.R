@@ -47,6 +47,21 @@ get_supported_languages <- function() {
   c("R")
 }
 
+#' Generate an id for internal use in job objects
+#' @noRd
+.generate_object_id <- function(type = c("job", "job_sequence"), n = 12L) {
+  type <- match.arg(type)
+  type_prefix <- switch(type,
+    job = "hpcR_j_",
+    job_sequence = "hpcR_s_"
+  )
+  paste0(
+    type_prefix,
+    paste0(sample(c(letters, 0:9), size = n, replace = TRUE), collapse = "")
+  )
+}
+
+
 #' Handle `variable=value` and `variable` combinations
 #' @noRd
 .paste_args <- function(str_vec) {
@@ -293,4 +308,21 @@ get_supported_languages <- function() {
   }
 
   args
+}
+
+.job_obj_guard <- function(
+  x, fn, alt_fn = NULL,
+  .call = rlang::caller_env()
+) {
+  msgs <- c("You supplied one or more job objects to {.code {fn}}.")
+  if (!is.null(alt_fn)) {
+    msgs <- c(
+      msgs, "Did you mean to use {.code {alt_fn}} instead of {.code {fn}}?"
+    )
+  }
+  jobs <- is_job(x)
+  if (any(jobs)) {
+    cli::cli_abort(msgs, call = .call)
+  }
+  invisible(x)
 }

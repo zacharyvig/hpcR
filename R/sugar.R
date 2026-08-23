@@ -72,7 +72,15 @@
 #' variable and is set by default but can be overridden by the user.
 #' @param site A character vector of library paths to store in the job's site
 #' library paths which is usually shared across users in a multi-user
-#' environment. For R jobs, this is the \code{R_LIBS_SITE} environment variable.
+#' @param upstream_name A character vector. The names of jobs on which this job
+#' depends to run. Supplying job names to \code{sequencing()} is only supported
+#' when jobs are subsequently added a job sequence object. See
+#' \link{job_sequences} for details.
+#' @param upstream_id A character vector. The scheduler IDs of the jobs on
+#' which this job depends to run. Scheduler IDs are only available after a job
+#' has been submitted.
+#' @param sequence_name A character string. The name of the sequence when
+#' building a job sequence. See \link{job_sequences} for more details.
 #' @param print_session_info If \code{TRUE}, print the \code{sessionInfo()} and
 #' \code{Sys.info()} in the output file when the job starts. Useful for
 #' debugging problems with the compute environment or R installation. Default:
@@ -249,6 +257,16 @@ libraries <- function(
 
 #' @rdname build_job
 #' @export
+sequencing <- function(upstream_name = NULL, upstream_id = NULL) {
+  value <- list(
+    upstream_name = as.character(upstream_name),
+    upstream_id = as.character(upstream_id)
+  )
+  class_job_update(updates = list(sequencing = value))
+}
+
+#' @rdname build_job
+#' @export
 settings <- function(
   print_session_info = NULL,
   print_environment = NULL
@@ -258,4 +276,12 @@ settings <- function(
     print_environment = print_environment
   )
   class_job_update(updates = list(.run_settings = run_settings))
+}
+
+#' @rdname build_job
+#' @export
+job_sequence <- function(sequence_name = NULL) {
+  out <- class_job_sequence(sequence_name = as.character(sequence_name))
+  out@.locked <- TRUE
+  out
 }

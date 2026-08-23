@@ -41,6 +41,7 @@ Collate:
     'invoke_system.R'
     'job_methods.R'
     'print_job.R'
+    'sequencing.R'
     'submit_job.R'
     'sugar.R'
     'update_job.R'

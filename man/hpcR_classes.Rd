@@ -76,6 +76,11 @@ a collection of S7 subclasses. These include:
      the job. For script input, it also stores information about
      the script, such as its extension and language.
    }
+   \item{\code{class_pb_job_directory}}{
+     Subclass of \code{class_property_block} for storing
+     job directory information, including the path and whether
+     to create the directory if it doesn't exist.
+   }
    \item{\code{class_pb_resources}}{
      Subclass of \code{class_property_block} for storing
      resource-related job properties, such as number of nodes,
@@ -93,6 +98,10 @@ a collection of S7 subclasses. These include:
    \item{\code{class_pb_libraries}}{
      Subclass of \code{class_property_block} for storing R library
      environment settings for the job.
+   }
+   \item{\code{class_pb_sequencing}}{
+     Subclass of \code{class_property_block} for storing information
+     about job sequences, including dependencies and order of execution.
    }
    \item{\code{class_pb_compiled}}{
      Subclass of \code{class_property_block} for storing compiled information

@@ -8,6 +8,7 @@
 \alias{summary}
 \alias{format}
 \alias{submit.class_job}
+\alias{submit.class_job_sequence}
 \alias{format.class_job}
 \alias{format.class_job_summary}
 \alias{print.class_job}
@@ -16,7 +17,10 @@
 \title{Working with hpcR job objects}
 \usage{
 ## S7 method for class <hpcR::class_job>
-submit(job, ...)
+submit(x, ...)
+
+## S7 method for class <hpcR::class_job_sequence>
+submit(x, ...)
 
 ## S7 method for class <hpcR::class_job>
 format(x, ...)
@@ -37,7 +41,8 @@ format(x, ...)
 print(x, ...)
 }
 \arguments{
-\item{job, x, object}{An \link{hpcR} job object or job summary object.}
+\item{x, object}{An \link{hpcR} job object, job sequence object, or job
+summary object.}
 
 \item{...}{Not currently used}
 }

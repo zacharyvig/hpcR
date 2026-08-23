@@ -65,6 +65,11 @@
 #'      the job. For script input, it also stores information about
 #'      the script, such as its extension and language.
 #'    }
+#'    \item{\code{class_pb_job_directory}}{
+#'      Subclass of \code{class_property_block} for storing
+#'      job directory information, including the path and whether
+#'      to create the directory if it doesn't exist.
+#'    }
 #'    \item{\code{class_pb_resources}}{
 #'      Subclass of \code{class_property_block} for storing
 #'      resource-related job properties, such as number of nodes,
@@ -82,6 +87,10 @@
 #'    \item{\code{class_pb_libraries}}{
 #'      Subclass of \code{class_property_block} for storing R library
 #'      environment settings for the job.
+#'    }
+#'    \item{\code{class_pb_sequencing}}{
+#'      Subclass of \code{class_property_block} for storing information
+#'      about job sequences, including dependencies and order of execution.
 #'    }
 #'    \item{\code{class_pb_compiled}}{
 #'      Subclass of \code{class_property_block} for storing compiled information
@@ -177,6 +186,15 @@ class_pb_libraries <- S7::new_class(
   )
 )
 
+class_pb_sequencing <- S7::new_class(
+  "class_pb_sequencing",
+  parent = class_property_block,
+  properties = list(
+    upstream_name = S7::class_character,
+    upstream_id = S7::class_character
+  )
+)
+
 class_pb_compiled <- S7::new_class(
   "class_pb_compiled",
   parent = class_property_block,
@@ -197,6 +215,26 @@ class_pb_run_settings <- S7::new_class(
   )
 )
 
+class_pb_metadata <- S7::new_class(
+  "class_pb_metadata",
+  parent = class_property_block,
+  properties = list(
+    created = S7::class_POSIXct,
+    object_id = S7::class_character
+  ),
+  constructor = function(
+    type = c("job", "job_sequence"),
+    created = Sys.time(),
+    object_id = .generate_object_id(type)
+  ) {
+    S7::new_object(
+      S7::S7_object(),
+      created = created,
+      object_id = object_id
+    )
+  }
+)
+
 class_job <- S7::new_class(
   "class_job",
   properties = list(
@@ -207,6 +245,7 @@ class_job <- S7::new_class(
     resources = guarded("resources", class_pb_resources),
     packages = guarded("packages", class_pb_packages),
     libraries = guarded("libraries", class_pb_libraries),
+    sequence = guarded("sequence", class_pb_sequencing),
     .locked = S7::new_property(
       class = S7::class_logical,
       default = FALSE
@@ -216,7 +255,8 @@ class_job <- S7::new_class(
       default = FALSE
     ),
     .compiled = guarded(".compiled", class_pb_compiled),
-    .run_settings = guarded(".run_settings", class_pb_run_settings)
+    .run_settings = guarded(".run_settings", class_pb_run_settings),
+    .metadata = guarded(".metadata", class_pb_metadata)
   )
 )
 
@@ -252,8 +292,51 @@ class_job_summary <- S7::new_class(
   )
 )
 
+class_job_sequence <- S7::new_class(
+  "class_job_sequence",
+  properties = list(
+    sequence_name = guarded("sequence_name", S7::class_character),
+    node_objects = guarded("node_objects", S7::class_list),
+    node_labels = guarded("node_labels", S7::class_character),
+    edges = guarded("edges", S7::class_data.frame),
+    start_nodes = guarded("start_nodes", S7::class_character),
+    end_nodes = guarded("end_nodes", S7::class_character),
+    .locked = S7::new_property(
+      class = S7::class_logical,
+      default = FALSE
+    ),
+    .metadata = guarded(".metadata", class_pb_metadata)
+  ),
+  constructor = function(
+    sequence_name = character(0),
+    node_objects = list(),
+    node_labels = character(0),
+    edges = data.frame(
+      from = character(0), to = character(0),
+      stringsAsFactors = FALSE
+    ),
+    start_nodes = character(0),
+    end_nodes = character(0),
+    .locked = FALSE,
+    .metadata = class_pb_metadata(type = "job_sequence")
+  ) {
+    S7::new_object(
+      S7::S7_object(),
+      sequence_name = sequence_name,
+      node_objects = node_objects,
+      node_labels = node_labels,
+      edges = edges,
+      start_nodes = start_nodes,
+      end_nodes = end_nodes,
+      .locked = .locked,
+      .metadata = .metadata
+    )
+  }
+)
+
 #' @noRd
 is_job <- function(x, language = NULL) {
+  # this function is vectorized
   x <- c(x)
   vapply(
     seq_along(x),
@@ -294,6 +377,16 @@ is_job_summary <- function(x) {
   vapply(
     seq_along(x),
     function(i) S7::S7_inherits(x[[i]], class = class_job_summary),
+    logical(1)
+  )
+}
+
+#' @noRd
+is_job_sequence <- function(x) {
+  x <- c(x)
+  vapply(
+    seq_along(x),
+    function(i) S7::S7_inherits(x[[i]], class = class_job_sequence),
     logical(1)
   )
 }

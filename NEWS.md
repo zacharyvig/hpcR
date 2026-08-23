@@ -11,3 +11,45 @@
 
 * Added introductory and submission-debugging vignettes, including guidance on  package provisioning, `packages()`, and `libraries()`.
 * Added tests for compiled library environment variables and for propagation of  `R_LIBS` to a local R job.
+
+## New features
+
+- Added support for building job sequences with the `%->%` operator.
+  Jobs can now be chained so downstream jobs depend on upstream jobs.
+
+- Added `job_sequence()` for initializing empty job sequences.
+
+- Added `branch()` for defining parallel branches within a job sequence.
+  Branches return job sequence objects, so they can be combined with other
+  jobs or branches using `%->%`.
+
+- Added internal sequence graph support using job object IDs as node
+  identifiers. This allows job names to remain optional while keeping sequence
+  dependencies stable.
+
+- Added user-facing duplicate job detection in sequences. When possible, errors
+  refer to the expressions used by the user, for example indicating that
+  `job` and `job2` are the same job. 
+
+- Assumed logic that reassigning an old job to a new object does not create a 
+  new job, i.e., the new object will be treated as an identical job. Job cloning
+  will be supported through the `clone()` function, of which only a skeleton
+  exists now.
+
+- Added support for inline code jobs. Code supplied with `code()` is captured,
+  materialized as a generated R script during compilation, and submitted through
+  the standard script submission pathway.
+
+## Internal changes
+
+- Refactored code-input preparation so `.prepare_input_code()` returns the
+  generated script path, while `.compile_job()` assigns that path to the job
+  input before submission.
+
+- Updated job compilation to preserve and restore lock state when mutating job
+  objects and job sequence objects internally.
+
+- Added centralized job default hydration for selected unset job properties.
+
+- Added internal helpers for parsing alternate argument names, including support
+  for friendly library arguments that map to R library environment variables.

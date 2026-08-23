@@ -9,7 +9,8 @@ check_job_status(
   user = NULL,
   scheduler_name = get_supported_schedulers(),
   standardize_output = TRUE,
-  control = NULL
+  control = NULL,
+  .call = rlang::caller_env()
 )
 }
 \arguments{
@@ -29,6 +30,8 @@ returns raw statuses depending on the scheduler. Default: \code{TRUE}.}
 
 \item{control}{A list of additional, scheduler-specific arguments. See
 Details.}
+
+\item{.call}{The calling environment, used for error messages.}
 }
 \value{
 A data frame with the status information of the queried job(s).

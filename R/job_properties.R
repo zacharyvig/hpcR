@@ -45,9 +45,53 @@ named_list <- S7::new_property(
   class = S7::class_list,
   validator = function(value) {
     if (
-      length(value) && (any(is.null(names(value))) | any(names(value) == ""))
+      length(value) && (any(is.null(names(value))) || any(names(value) == ""))
     ) {
       "elements must be named"
+    }
+  }
+)
+
+#' @title S7 property for named character vectors
+#' @format An S7 property that requires that
+#' all elements in a character vector are named.
+#' @noRd
+named_character <- S7::new_property(
+  class = S7::class_character,
+  validator = function(value) {
+    if (
+      length(value) && (any(is.null(names(value))) || any(names(value) == ""))
+    ) {
+      "elements must be named"
+    }
+  }
+)
+
+#' @title S7 property for a list of job objects
+#' @format An S7 property that requires that
+#' all elements in a list are job objects and
+#' each element is named by the job name.
+#' @noRd
+named_job_list <- S7::new_property(
+  class = S7::class_list,
+  validator = function(value) {
+    if (length(value) && !all(vapply(value, is_job, logical(1)))) {
+      "elements must be job objects"
+    }
+    if (length(value) && (any(is.null(names(value))) || any(names(value) == ""))) {
+      "elements must be named"
+    }
+  }
+)
+
+#' @title S7 property for a list of job sequence objects
+#' @format An S7 property that is a list of job sequence objects
+#' @noRd
+job_sequence_list <- S7::new_property(
+  class = S7::class_list,
+  validator = function(value) {
+    if (length(value) && !all(vapply(value, is_job_sequence, logical(1)))) {
+      "elements must be job sequence objects"
     }
   }
 )

@@ -45,6 +45,8 @@ wait_for_job <- function(
   stop_on_timeout = TRUE
 ) {
 
+  job_ids <- .job_obj_guard(job_ids, "wait_for_job")
+
   scheduler_name <- match.arg(scheduler_name)
 
   # validate input

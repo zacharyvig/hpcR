@@ -5,7 +5,8 @@
 #' easily examined using the \code{summary()} method, which provides a concise
 #' summary of the job's key properties.
 #'
-#' @param job,x,object An \link{hpcR} job object or job summary object.
+#' @param x,object An \link{hpcR} job object, job sequence object, or job
+#' summary object.
 #' @param ... Not currently used
 #'
 #' @section Methods:
@@ -45,14 +46,14 @@
 NULL
 
 #' @export
-submit <- S7::new_generic("submit", "job")
+submit <- S7::new_generic("submit", "x")
 
 #' @rdname hpcR_methods
 #' @name submit.class_job
 #' @method submit class_job
 #' @export
-S7::method(submit, class_job) <- function(job, ...) {
-  defaulted_job <- .hydrate_defaults(job)
+S7::method(submit, class_job) <- function(x, ...) {
+  defaulted_job <- .hydrate_defaults(x)
   # validate job for submission
   .validate_job(defaulted_job, stage = "submit", .call = rlang::caller_env())
   # ensure declared packages are available before compiling the job
@@ -84,8 +85,44 @@ S7::method(submit, class_job) <- function(job, ...) {
     cli::cli_progress_step(
       "Job submitted successfully with ID: {.code {out}}"
     )
-    return(invisible(out))
+    invisible(out)
   }
+}
+
+#' @rdname hpcR_methods
+#' @name submit.class_job_sequence
+#' @method submit class_job_sequence
+#' @export
+S7::method(submit, class_job_sequence) <- function(x, ...) {
+  cli::cli_abort(
+    "Job sequence submission is not yet implemented.",
+    call = rlang::caller_env()
+  )
+}
+
+#' @export
+clone <- S7::new_generic("clone", "x")
+
+#' @rdname hpcR_methods
+#' @name clone.class_job
+#' @method clone class_job
+#' @export
+S7::method(clone, class_job) <- function(x, ...) {
+  cli::cli_abort(
+    "Job cloning is not yet implemented",
+    call = rlang::caller_env()
+  )
+}
+
+#' @rdname hpcR_methods
+#' @name clone.class_job_sequence
+#' @method clone class_job_sequence
+#' @export
+S7::method(clone, class_job_sequence) <- function(x, ...) {
+  cli::cli_abort(
+    "Job sequence cloning is not yet implemented",
+    call = rlang::caller_env()
+  )
 }
 
 #' @rdname hpcR_methods

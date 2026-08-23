@@ -77,12 +77,7 @@ submit_job  <- function(
   .call = rlang::caller_env()
 ) {
 
-  if (is_job(input)) {
-    cli::cli_abort(
-      "Did you mean to use {.code submit} instead of {.code submit_job}?",
-      call = .call
-    )
-  }
+  input <- .job_obj_guard(input, "submit_job", alt_fn = "submit")
 
   input_type <- match.arg(input_type)
   scheduler_name <- match.arg(scheduler_name)
