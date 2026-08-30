@@ -4,7 +4,7 @@
   if (S7::prop(job, ".defaulted"))  {
     return(job)
   }
-  job <- update_job(
+  job <- .update_job(
     e1 = job, e2 = .job_defaults(),
     skip_validation = TRUE,
     overwrite = FALSE

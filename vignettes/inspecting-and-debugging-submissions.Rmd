@@ -136,11 +136,11 @@ Sys.which(c("qsub", "qstat", "tracejob")) # TORQUE
 
 ## Inspect Compiled Metadata
 
-`compile_job()` prepares the bundled submission wrapper, scheduler arguments,
+`compile()` prepares the bundled submission wrapper, scheduler arguments,
 and runtime environment. It does not submit the job or contact the scheduler.
 
 ```{r}
-compiled_job <- compile_job(debug_job)
+compiled_job <- compile(debug_job)
 ```
 
 The compiled metadata is stored in an internal property. It is useful for

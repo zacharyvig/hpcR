@@ -3,14 +3,13 @@
 \docType{methods}
 \name{compile_job}
 \alias{compile_job}
+\alias{compile}
 \title{Prepare a job object for submission}
 \usage{
-compile_job(job, ...)
+compile(x)
 }
 \arguments{
-\item{job}{A job object to be compiled for submission}
-
-\item{...}{Not currently used}
+\item{x}{The object to be compiled.}
 }
 \description{
 Prepare a job object for submission

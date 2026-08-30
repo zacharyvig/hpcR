@@ -10,19 +10,6 @@
 \alias{format.class_job_summary}
 \alias{print.class_job_summary}
 \title{Format and print hpcR objects}
-\usage{
-## S7 method for class <hpcR::class_job>
-format(x, ...)
-
-## S7 method for class <hpcR::class_job>
-print(x, ...)
-
-## S7 method for class <hpcR::class_job_summary>
-format(x, ...)
-
-## S7 method for class <hpcR::class_job_summary>
-print(x, ...)
-}
 \arguments{
 \item{x}{An hpcR object to be formatted or printed.}
 
@@ -31,3 +18,4 @@ print(x, ...)
 \description{
 Format and print hpcR objects
 }
+\keyword{internal}

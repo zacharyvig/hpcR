@@ -2,22 +2,46 @@
 # Internals are named `.validate_*` where `*` is the name of the property
 
 #' Validate a job object
-#' @keywords internal
-validate <- S7::new_generic("validate", "x")
+#'
+#' @param x An \code{hpcR} object to be validated.
+#' @param stage The stage of validation, either "update" (i.e., when the job is
+#' being built) or "submit" (i.e., when the job is being submitted). Default:
+#' "update".
+#' @name validate
+#' @docType methods
+#' @export
+validate <- S7::new_generic(
+  "validate",
+  "x",
+  function(x, stage = c("update", "submit")) {
+    S7::S7_dispatch()
+  }
+)
 
 S7::method(validate, class_job) <- function(
-  x, stage = c("update", "submit"), .call = rlang::caller_env()
+  x, stage = c("update", "submit")
 ) {
   stage <- match.arg(stage)
-  .validate_job(x, .call = .call, stage = stage)
+  .validate_job(
+    x, .call = rlang::caller_call(), stage = stage, exclude = "^[.]"
+  )
 }
 
 S7::method(validate, class_job_sequence) <- function(
-  x, stage = c("update", "submit"), .call = rlang::caller_env()
+  x, stage = c("update", "submit")
 ) {
   cli::cli_abort(
     "Job sequence validation is not yet implemented.",
-    call = rlang::caller_env()
+    call = rlang::caller_call()
+  )
+}
+
+S7::method(validate, S7::class_any) <- function(
+  x, stage = c("update", "submit")
+) {
+  cli::cli_abort(
+    "Invalid object type for validation; must be a job or job sequence.",
+    call = rlang::caller_call()
   )
 }
 

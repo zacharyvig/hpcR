@@ -3,16 +3,8 @@
 \docType{methods}
 \name{submit}
 \alias{submit}
-\alias{submit.class_job}
-\alias{submit.class_job_sequence}
 \title{Submit a job or job sequence to an HPC scheduler}
 \usage{
-submit(x)
-
-## S7 method for class <hpcR::class_job>
-submit(x)
-
-## S7 method for class <hpcR::class_job_sequence>
 submit(x)
 }
 \arguments{

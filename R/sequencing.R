@@ -141,7 +141,7 @@ branch <- function(...) {
     purrr::map2(
       inputs,
       labels,
-      \(x, label) .as_job_sequence(x, label = label, .call = .call)
+      function (x, label) .as_job_sequence(x, label = label, .call = .call)
     ),
     purrr_error_indexed = function(err) {
       rlang::cnd_signal(err$parent)

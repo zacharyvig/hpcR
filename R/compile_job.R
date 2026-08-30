@@ -1,7 +1,6 @@
 #' Prepare a job object for submission
 #'
-#' @param job A job object to be compiled for submission
-#' @param ... Not currently used
+#' @param x The object to be compiled.
 #'
 #' @name compile_job
 #' @include job_classes.R
@@ -10,15 +9,28 @@ NULL
 
 #' @rdname compile_job
 #' @export
-compile_job <- S7::new_generic("compile_job", "job")
+compile <- S7::new_generic("compile", "x", function(x) {
+  S7::S7_dispatch()
+})
 
 
-S7::method(compile_job, class_job) <- function(
-  job, .call = rlang::caller_env(), ...
-) {
-  .compile_job(job)
+S7::method(compile, class_job) <- function(x) {
+  .compile_job(job = x)
 }
 
+S7::method(compile, class_job_sequence) <- function(x) {
+  cli::cli_abort(
+    "Job sequence compilation is not yet implemented.",
+    call = rlang::caller_call()
+  )
+}
+
+S7::method(compile, S7::class_any) <- function(x) {
+  cli::cli_abort(
+    "Invalid object type for compilation; must be a job or job sequence.",
+    call = rlang::caller_call()
+  )
+}
 
 #' Internal function to compile a job object for submission
 #' @noRd

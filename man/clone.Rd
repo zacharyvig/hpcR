@@ -3,16 +3,8 @@
 \docType{methods}
 \name{clone}
 \alias{clone}
-\alias{clone.class_job}
-\alias{clone.class_job_sequence}
 \title{Clone a job or job sequence}
 \usage{
-clone(x, new_name = NULL)
-
-## S7 method for class <hpcR::class_job>
-clone(x, new_name = NULL)
-
-## S7 method for class <hpcR::class_job_sequence>
 clone(x, new_name = NULL)
 }
 \arguments{

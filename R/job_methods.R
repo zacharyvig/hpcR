@@ -46,10 +46,6 @@ submit <- S7::new_generic("submit", "x", function(x) {
   S7::S7_dispatch()
 })
 
-#' @rdname submit
-#' @name submit.class_job
-#' @method submit class_job
-#' @export
 S7::method(submit, class_job) <- function(x) {
   defaulted_job <- .hydrate_defaults(x)
   # validate job for submission
@@ -87,13 +83,16 @@ S7::method(submit, class_job) <- function(x) {
   }
 }
 
-#' @rdname submit
-#' @name submit.class_job_sequence
-#' @method submit class_job_sequence
-#' @export
 S7::method(submit, class_job_sequence) <- function(x) {
   cli::cli_abort(
     "Job sequence submission is not yet implemented.",
+    call = rlang::caller_env()
+  )
+}
+
+S7::method(submit, S7::class_any) <- function(x) {
+  cli::cli_abort(
+    "Invalid object type for submission; must be a job or job sequence.",
     call = rlang::caller_env()
   )
 }
@@ -108,20 +107,19 @@ clone <- S7::new_generic("clone", "x", function(x, new_name = NULL) {
   S7::S7_dispatch()
 })
 
-#' @rdname clone
-#' @name clone.class_job
-#' @method clone class_job
-#' @export
 S7::method(clone, class_job) <- function(x, new_name = NULL) {
   .clone_object(x, new_name = new_name)
 }
 
-#' @rdname clone
-#' @name clone.class_job_sequence
-#' @method clone class_job_sequence
-#' @export
 S7::method(clone, class_job_sequence) <- function(x, new_name = NULL) {
   .clone_object(x, new_name = new_name)
+}
+
+S7::method(clone, S7::class_any) <- function(x, new_name = NULL) {
+  cli::cli_abort(
+    "Invalid object type for cloning; must be a job or job sequence.",
+    call = rlang::caller_env()
+  )
 }
 
 #' @title Summarize a job object
@@ -164,37 +162,22 @@ S7::method(summary, class_job) <- function(object, ...) {
 #' @aliases format.class_job_summary
 #' @aliases print.class_job_summary
 #' @docType methods
+#' @keywords internal
 NULL
 
 
-#' @rdname format_print
-#' @name format.class_job
-#' @method format class_job
-#' @export
 S7::method(format, class_job) <- function(x, ...) {
   .format_job(x, ...)
 }
 
-#' @rdname  format_print
-#' @name print.class_job
-#' @method print class_job
-#' @export
 S7::method(print, class_job) <- function(x, ...) {
   cat(format(x, ...), sep = "\n")
 }
 
-#' @rdname format_print
-#' @name format.class_job_summary
-#' @method format class_job_summary
-#' @export
 S7::method(format, class_job_summary) <- function(x, ...) {
   .format_job_summary(x, ...)
 }
 
-#' @rdname format_print
-#' @name print.class_job_summary
-#' @method print class_job_summary
-#' @export
 S7::method(print, class_job_summary) <- function(x, ...) {
   cat(format(x, ...), sep = "\n")
 }

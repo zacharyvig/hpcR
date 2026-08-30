@@ -11,27 +11,15 @@
 #'
 #' @param e1 A class_job object to be updated
 #' @param e2 A class_job_update object containing the updates
-#' @param ... Not currently used
-#'
 #'
 #' @name update_job
+#' @usage e1 + e2
+#' @aliases +
 #' @docType methods
 #' @include job_classes.R
 #' @export
-update_job <- S7::new_generic("update_job", c("e1", "e2"))
-
-
 S7::method(`+`, list(class_job, class_job_update)) <- function(e1, e2) {
   .update_job(e1, e2, use_default_settings = TRUE)
-}
-
-
-S7::method(
-  update_job, list(class_job, class_job_update)
-) <- function(
-  e1, e2, ...
-) {
-  .update_job(e1, e2, ...)
 }
 
 #' Internal function to update a job by adding a class_job_update object

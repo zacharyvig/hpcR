@@ -3,16 +3,15 @@
 \docType{methods}
 \name{update_job}
 \alias{update_job}
+\alias{+}
 \title{Incrementally build a job using `+`}
 \usage{
-update_job(e1, e2, ...)
+e1 + e2
 }
 \arguments{
 \item{e1}{A class_job object to be updated}
 
 \item{e2}{A class_job_update object containing the updates}
-
-\item{...}{Not currently used}
 }
 \description{
 ...
