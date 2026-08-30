@@ -25,7 +25,7 @@ guarded <- function(property, class, default = NULL) {
       if (!S7::prop_exists(self, ".locked")) {
         cli::cli_abort(
           "{.code .locked} property does not exist in {class(self)}",
-          .internal = TRUE
+          ..internal = TRUE
         )
       }
       if (self@.locked) cli::cli_abort(

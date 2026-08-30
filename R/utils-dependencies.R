@@ -105,7 +105,7 @@
     job@input@language,
     R = c("R_LIBS", "R_LIBS_USER", "R_LIBS_SITE"),
     cli::cli_abort(
-      "Unsupported job language: {job@input@language}", internal = TRUE
+      "Unsupported job language: {job@input@language}", .internal = TRUE
     )
   )
   out

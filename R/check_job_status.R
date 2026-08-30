@@ -113,7 +113,7 @@ check_job_status <- function(
     "torque" = .check_job_status_torque,
     "local" = .check_job_status_local,
     cli::cli_abort(
-      "Unsupported scheduler: {scheduler_name}", internal = TRUE
+      "Unsupported scheduler: {scheduler_name}", .internal = TRUE
     )
   )
 
@@ -143,7 +143,19 @@ check_job_status <- function(
 
 }
 
-get_default_status_columns <- function(scheduler_name) {
+
+#' @rdname hpcR_utils
+#' @export
+get_default_status_columns <- function(
+  scheduler_name = c("slurm", "torque", "local")
+) {
+  scheduler_name <- match.arg(scheduler_name)
+  if (identical(scheduler_name, "torque")) {
+    cli::cli_abort(
+      "TORQUE does not support column selection in job status queries",
+      .internal = TRUE
+    )
+  }
   switch(
     scheduler_name,
     "slurm" = c(
@@ -151,8 +163,7 @@ get_default_status_columns <- function(scheduler_name) {
     ),
     "local" = c(
       "user", "pid", "state", "time", "etime", "%cpu", "%mem", "comm", "xstat"
-    ),
-    NULL
+    )
   )
 }
 
@@ -201,7 +212,7 @@ get_default_status_columns <- function(scheduler_name) {
   }
 
   # parse sacct output into data frame
-  df <- data.table::fread(text = result, data.table=FALSE)
+  df <- data.table::fread(text = result, data.table = FALSE)
   df$JobID <- as.character(df$JobID)
 
   if (is.null(job_ids)) {
@@ -515,7 +526,7 @@ get_default_status_columns <- function(scheduler_name) {
         "failed" = "failed",
         "cancelled" = "cancelled",
         cli::cli_abort(
-          "Unsupported status: {status}", internal = TRUE
+          "Unsupported status: {status}", .internal = TRUE
         )
       )
       cli::cli_inform(
@@ -537,11 +548,11 @@ get_default_status_columns <- function(scheduler_name) {
 #' @noRd
 .standardize_statuses <- function(status_table, scheduler_name) {
   if (scheduler_name %in% c("slurm", "sbatch")) {
-    if(!checkmate::test_subset("State", names(status_table))) {
+    if (!checkmate::test_subset("State", names(status_table))) {
       cli::cli_abort(
         paste("Expected column 'State' not found in status table returned by",
               "check_job_status() for scheduler {scheduler_name}."),
-        internal = TRUE
+        .internal = TRUE
       )
     }
     state <- vapply(
@@ -574,7 +585,7 @@ get_default_status_columns <- function(scheduler_name) {
       cli::cli_abort(
         paste("Expected column 'STAT' not found in status table returned by",
               "check_job_status() for scheduler {scheduler_name}."),
-        internal = TRUE
+        .internal = TRUE
       )
     }
     state <- vapply(
@@ -599,13 +610,13 @@ get_default_status_columns <- function(scheduler_name) {
       cli::cli_abort(
         paste("Expected column 'State' not found in status table returned by",
               "check_job_status() for scheduler {scheduler_name}."),
-        internal = TRUE
+        .internal = TRUE
       )
     }
     state <- status_table$State
   } else {
     cli::cli_abort(
-      "Unsupported scheduler: {scheduler_name}", internal = TRUE
+      "Unsupported scheduler: {scheduler_name}", .internal = TRUE
     )
   }
   state

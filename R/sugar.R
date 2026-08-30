@@ -72,11 +72,11 @@
 #' variable and is set by default but can be overridden by the user.
 #' @param site A character vector of library paths to store in the job's site
 #' library paths which is usually shared across users in a multi-user
-#' @param upstream_name A character vector. The names of jobs on which this job
+#' @param upstream_names A character vector. The names of jobs on which this job
 #' depends to run. Supplying job names to \code{sequencing()} is only supported
 #' when jobs are subsequently added a job sequence object. See
 #' \link{job_sequences} for details.
-#' @param upstream_id A character vector. The scheduler IDs of the jobs on
+#' @param upstream_ids A character vector. The scheduler IDs of the jobs on
 #' which this job depends to run. Scheduler IDs are only available after a job
 #' has been submitted.
 #' @param sequence_name A character string. The name of the sequence when
@@ -89,6 +89,7 @@
 #' output file when the job starts. This can produce a lot of output, but can be
 #' useful if certain environment variables are not being found when your job
 #' runs, leading it to fail. Default: \code{FALSE}.
+#' @param ... Additional arguments passed to some sugar functions. See details.
 #'
 #' @returns A job object with the properties specified by the user.
 #'
@@ -115,7 +116,13 @@ rjob <- function(job_name = NULL) {
   # wrapper for R-specific jobs (either script or code)
   job <- class_job()
   if (!missing(job_name)) {
-    job@job_name <- as.character(job_name)
+    job_name <- as.character(job_name)
+    validate_property(
+      name = "job_name",
+      value = job_name,
+      .call = rlang::caller_env()
+    )
+    job@job_name <- job_name
   }
   input <- class_pb_input(
     input_type = character(0),
@@ -135,7 +142,13 @@ rjob <- function(job_name = NULL) {
 oneliner <- function(oneliner = NULL, job_name = NULL) {
   job <- class_job()
   if (!missing(job_name)) {
-    job@job_name <- as.character(job_name)
+    job_name <- as.character(job_name)
+    validate_property(
+      name = "job_name",
+      value = job_name,
+      .call = rlang::caller_env()
+    )
+    job@job_name <- job_name
   }
   input <- class_pb_input(
     input_type = "oneliner",
@@ -196,7 +209,6 @@ job_directory <- function(job_directory = NULL, create = FALSE) {
 #' @rdname build_job
 #' @export
 scheduler <- function(scheduler_name = NULL) {
-  # TODO: add more arguments to this function as needed
   value <- list(
     scheduler_name = as.character(
       standardize_scheduler_name(scheduler_name, strict = FALSE)
@@ -257,12 +269,14 @@ libraries <- function(
 
 #' @rdname build_job
 #' @export
-sequencing <- function(upstream_name = NULL, upstream_id = NULL) {
+sequencing <- function(upstream_names = NULL, upstream_ids = NULL) {
   value <- list(
-    upstream_name = as.character(upstream_name),
-    upstream_id = as.character(upstream_id)
+    sequencing = list(
+      upstream_names = as.character(upstream_names),
+      upstream_ids = as.character(upstream_ids)
+    )
   )
-  class_job_update(updates = list(sequencing = value))
+  class_job_update(updates = list(scheduler = value))
 }
 
 #' @rdname build_job
@@ -271,7 +285,7 @@ settings <- function(
   print_session_info = NULL,
   print_environment = NULL
 ) {
-  run_settings = list(
+  run_settings <- list(
     print_session_info = print_session_info,
     print_environment = print_environment
   )
@@ -280,8 +294,12 @@ settings <- function(
 
 #' @rdname build_job
 #' @export
-job_sequence <- function(sequence_name = NULL) {
-  out <- class_job_sequence(sequence_name = as.character(sequence_name))
-  out@.locked <- TRUE
-  out
+job_sequence <- function(sequence_name = NULL, ...) {
+  seq <- .sequence_job_objs(
+    sequence_name = sequence_name,
+    ...,
+    .call = rlang::current_call()
+  )
+  seq@.locked <- TRUE
+  seq
 }

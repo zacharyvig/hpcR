@@ -99,10 +99,6 @@ a collection of S7 subclasses. These include:
      Subclass of \code{class_property_block} for storing R library
      environment settings for the job.
    }
-   \item{\code{class_pb_sequencing}}{
-     Subclass of \code{class_property_block} for storing information
-     about job sequences, including dependencies and order of execution.
-   }
    \item{\code{class_pb_compiled}}{
      Subclass of \code{class_property_block} for storing compiled information
      about the job to pass to submission.

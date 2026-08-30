@@ -140,7 +140,7 @@ test_that(".prepare_input_code() creates fallback staging directory when job_dir
 test_that(".prepare_input_code() errors when code quosure is missing", {
   dir <- withr::local_tempdir()
 
-  job <- rjob("missing_code_job") +
+  job <- rjob("missing_code") +
     job_directory(dir)
 
   expect_error(
@@ -196,7 +196,7 @@ test_that(".generate_staging_dir() creates writable fallback directory under wor
 test_that(".compile_job() materializes code input into job input_value", {
   dir <- withr::local_tempdir()
 
-  job <- rjob("compile_code_job") +
+  job <- rjob("compile_code") +
     code({
       x <- 1
       print(x)
@@ -234,7 +234,7 @@ test_that(".compile_job() materializes code without evaluating it", {
 
   marker <- FALSE
 
-  job <- rjob("compile_code_job") +
+  job <- rjob("compile_code") +
     code({
       marker <- TRUE
       print("hello")

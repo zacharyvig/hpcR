@@ -65,6 +65,20 @@ test_that("validation warns on invalid scheduler name", {
   )
 })
 
+test_that("validator default settings are specified for all relevant properties", {
+  job <- oneliner("echo hello") +
+    scheduler("local") +
+    resources(n_nodes = 1, n_cores = 2)
+  expect_no_error(
+    validate(job, stage = "update"),
+    message = "Property has no default"
+  )
+  expect_no_error(
+    validate(job, stage = "submit"),
+    message = "Property has no default"
+  )
+})
+
 test_that("packages defer availability checks until submission", {
   job <- rjob("test") +
     packages(c("dplyr", "nonexistentpkg123"), install = "never")
@@ -239,4 +253,42 @@ test_that("default installation library prefers one configured user library", {
     "No single user library is configured",
     fixed = TRUE
   )
+})
+
+test_that("clone() creates a new job with a new object ID and updated metadata", {
+  job <- rjob("test")
+  cloned_job <- clone(job, new_name = "cloned_test")
+
+  expect_true(is_job(cloned_job))
+  expect_equal(cloned_job@job_name, "cloned_test")
+  expect_false(identical(job@.metadata@object_id, cloned_job@.metadata@object_id))
+  expect_false(identical(job@.metadata@created_at, cloned_job@.metadata@created_at))
+})
+
+test_that("clone() creates a new job sequence with a new object ID and updated metadata", {
+  job_sequence <- rjob("test") %->% rjob("test2")
+  cloned_sequence <- clone(job_sequence, new_name = "cloned_sequence")
+
+  expect_true(is_job_sequence(cloned_sequence))
+  expect_equal(cloned_sequence@sequence_name, "cloned_sequence")
+  expect_false(identical(job_sequence@.metadata@object_id, cloned_sequence@.metadata@object_id))
+  expect_false(identical(job_sequence@.metadata@created_at, cloned_sequence@.metadata@created_at))
+})
+
+test_that("clone() warns when cloning without specifying a new name", {
+  job <- rjob("test")
+  expect_message(
+    cloned_job <- clone(job),
+    "Cloning job without specifying a new name",
+    fixed = TRUE
+  )
+  expect_equal(cloned_job@job_name, "test")
+
+  job_sequence <- job_sequence("test") %->% rjob("test") %->% rjob("test2")
+  expect_message(
+    cloned_sequence <- clone(job_sequence),
+    "Cloning job sequence without specifying a new name",
+    fixed = TRUE
+  )
+  expect_equal(cloned_sequence@sequence_name, "test")
 })

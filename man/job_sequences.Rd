@@ -65,5 +65,7 @@ sequence_3 <- job_sequence("my_branching_sequence") \%->\%
    job_B,
    job_C \%->\% job_D
  )
+# this sequence starts with A, then branches into parallel sequences,
+# B and C -> D
 
 }

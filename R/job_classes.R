@@ -88,10 +88,6 @@
 #'      Subclass of \code{class_property_block} for storing R library
 #'      environment settings for the job.
 #'    }
-#'    \item{\code{class_pb_sequencing}}{
-#'      Subclass of \code{class_property_block} for storing information
-#'      about job sequences, including dependencies and order of execution.
-#'    }
 #'    \item{\code{class_pb_compiled}}{
 #'      Subclass of \code{class_property_block} for storing compiled information
 #'      about the job to pass to submission.
@@ -158,13 +154,34 @@ class_pb_resources <- S7::new_class(
   )
 )
 
+class_pb_sequencing <- S7::new_class(
+  "class_pb_sequencing",
+  parent = class_property_block,
+  properties = list(
+    upstream_names = S7::class_character,
+    upstream_ids = S7::class_character
+  ),
+  constructor = function(
+    upstream_names = character(0),
+    upstream_ids = character(0)
+  ) {
+    S7::new_object(
+      S7::S7_object(),
+      upstream_names = unique(upstream_names),
+      upstream_ids = unique(upstream_ids)
+    )
+  }
+)
+
 class_pb_scheduler <- S7::new_class(
   "class_pb_scheduler",
   parent = class_property_block,
   properties = list(
-    scheduler_name = S7::class_character
+    scheduler_name = S7::class_character,
+    sequencing = class_pb_sequencing
   )
 )
+
 
 class_pb_packages <- S7::new_class(
   "class_pb_packages",
@@ -183,15 +200,6 @@ class_pb_libraries <- S7::new_class(
     job = S7::class_character,
     user = S7::class_character,
     site = S7::class_character
-  )
-)
-
-class_pb_sequencing <- S7::new_class(
-  "class_pb_sequencing",
-  parent = class_property_block,
-  properties = list(
-    upstream_name = S7::class_character,
-    upstream_id = S7::class_character
   )
 )
 
@@ -219,17 +227,17 @@ class_pb_metadata <- S7::new_class(
   "class_pb_metadata",
   parent = class_property_block,
   properties = list(
-    created = S7::class_POSIXct,
+    created_at = S7::class_POSIXct,
     object_id = S7::class_character
   ),
   constructor = function(
     type = c("job", "job_sequence"),
-    created = Sys.time(),
+    created_at = Sys.time(),
     object_id = .generate_object_id(type)
   ) {
     S7::new_object(
       S7::S7_object(),
-      created = created,
+      created_at = created_at,
       object_id = object_id
     )
   }
@@ -245,7 +253,6 @@ class_job <- S7::new_class(
     resources = guarded("resources", class_pb_resources),
     packages = guarded("packages", class_pb_packages),
     libraries = guarded("libraries", class_pb_libraries),
-    sequence = guarded("sequence", class_pb_sequencing),
     .locked = S7::new_property(
       class = S7::class_logical,
       default = FALSE
@@ -270,7 +277,7 @@ class_job_update <- S7::new_class(
   constructor = function(updates) {
     S7::new_object(
       S7::S7_object(), updates = updates,
-      .update_call = sys.call(-1)
+      .update_call = rlang::caller_call()
     )
   }
 )
@@ -292,46 +299,47 @@ class_job_summary <- S7::new_class(
   )
 )
 
+class_pb_sequence_graph <- S7::new_class(
+  "class_pb_sequence_graph",
+  parent = class_property_block,
+  properties = list(
+    node_objects = S7::class_list,
+    node_labels = S7::class_character,
+    edges = S7::class_data.frame,
+    start_nodes = S7::class_character,
+    end_nodes = S7::class_character
+  ),
+  constructor = function(
+    node_objects = list(),
+    node_labels = character(0),
+    edges = tibble::tibble(
+      from = character(0), to = character(0)
+    ),
+    start_nodes = character(0),
+    end_nodes = character(0)
+  ) {
+    S7::new_object(
+      S7::S7_object(),
+      node_objects = node_objects,
+      node_labels = node_labels,
+      edges = edges,
+      start_nodes = start_nodes,
+      end_nodes = end_nodes
+    )
+  }
+)
+
 class_job_sequence <- S7::new_class(
   "class_job_sequence",
   properties = list(
     sequence_name = guarded("sequence_name", S7::class_character),
-    node_objects = guarded("node_objects", S7::class_list),
-    node_labels = guarded("node_labels", S7::class_character),
-    edges = guarded("edges", S7::class_data.frame),
-    start_nodes = guarded("start_nodes", S7::class_character),
-    end_nodes = guarded("end_nodes", S7::class_character),
+    sequence_graph = guarded("sequence_graph", class_pb_sequence_graph),
     .locked = S7::new_property(
       class = S7::class_logical,
       default = FALSE
     ),
     .metadata = guarded(".metadata", class_pb_metadata)
-  ),
-  constructor = function(
-    sequence_name = character(0),
-    node_objects = list(),
-    node_labels = character(0),
-    edges = data.frame(
-      from = character(0), to = character(0),
-      stringsAsFactors = FALSE
-    ),
-    start_nodes = character(0),
-    end_nodes = character(0),
-    .locked = FALSE,
-    .metadata = class_pb_metadata(type = "job_sequence")
-  ) {
-    S7::new_object(
-      S7::S7_object(),
-      sequence_name = sequence_name,
-      node_objects = node_objects,
-      node_labels = node_labels,
-      edges = edges,
-      start_nodes = start_nodes,
-      end_nodes = end_nodes,
-      .locked = .locked,
-      .metadata = .metadata
-    )
-  }
+  )
 )
 
 #' @noRd

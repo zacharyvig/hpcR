@@ -19,6 +19,8 @@ Imports:
     S7,
     tools,
     methods,
+    purrr,
+    tibble,
     utils
 Encoding: UTF-8
 LazyData: false

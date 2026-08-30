@@ -1,4 +1,4 @@
-#' Internal utility functions for hpcR
+#' Utility functions for hpcR
 #' @name hpcR_utils
 NULL
 
@@ -6,7 +6,7 @@ NULL
 #' @param strict Logical. If \code{TRUE}, throws an error if the scheduler name
 #' is not recognized. Otherwise, returns the input scheduler name.
 #' @rdname hpcR_utils
-#' @keywords internal
+#' @export
 standardize_scheduler_name <- function(scheduler_name, strict = FALSE) {
   scheduler_name <- tolower(scheduler_name)
   scheduler_name <- switch(scheduler_name,
@@ -19,15 +19,15 @@ standardize_scheduler_name <- function(scheduler_name, strict = FALSE) {
   if (strict && !scheduler_name %in% supported_schedulers) {
     cli::cli_abort("Invalid scheduler: {scheduler_name}")
   }
-  return(scheduler_name)
+  scheduler_name
 }
 
 #' @param hpc_only Logical. If \code{TRUE}, only returns HPC schedulers,
 #' excluding local scheduler and aliases. Default: \code{FALSE}.
 #' @param include_alias Logical. If \code{TRUE}, includes aliases for HPC and 
 #' local schedulers. Default: \code{FALSE}.
-#' @keywords internal
 #' @rdname hpcR_utils
+#' @export
 get_supported_schedulers <- function(hpc_only = FALSE, include_alias = TRUE) {
   # central definition of hpc schedulers and aliases
   hpc <- c("slurm", "torque")
@@ -41,8 +41,8 @@ get_supported_schedulers <- function(hpc_only = FALSE, include_alias = TRUE) {
   )
 }
 
-#' @keywords internal
 #' @rdname hpcR_utils
+#' @export
 get_supported_languages <- function() {
   c("R")
 }
@@ -114,6 +114,19 @@ get_supported_languages <- function() {
   } else {
     return(x)
   }
+}
+
+#' Helper to convert a property block to a list, recursively
+#' @noRd
+.property_block_to_list <- function(x) {
+  if (!isTRUE(is_property_block(x))) {
+    return(x)
+  }
+  props <- S7::props(x)
+  for (property in names(props)) {
+    props[[property]] <- .property_block_to_list(props[[property]])
+  }
+  props
 }
 
 #' Internal function to wait until a condition is true or until a timeout is
@@ -228,14 +241,14 @@ get_supported_languages <- function() {
   if (!is.list(args) || is.null(names(args)) || any(names(args) == "")) {
     cli::cli_abort(
       "Canonical arguments passed to {.fn .parse_alt_args} must be named.",
-      .internal = TRUE
+      ..internal = TRUE
     )
   }
 
   if (!is.character(.map) || is.null(names(.map)) || any(names(.map) == "")) {
     cli::cli_abort(
       "{.arg map} must be a named character vector.",
-      .internal = TRUE
+      ..internal = TRUE
     )
   }
 
@@ -244,7 +257,7 @@ get_supported_languages <- function() {
     cli::cli_abort(c(
       "{.arg map} points to unknown canonical argument{?s}.",
       "x" = "Unknown canonical argument{?s}: {.arg {bad_targets}}."
-    ), .internal = TRUE)
+    ), ..internal = TRUE)
   }
 
   if (is.null(.dotdotdot)) {
@@ -254,7 +267,7 @@ get_supported_languages <- function() {
   if (!is.list(.dotdotdot)) {
     cli::cli_abort(
       "{.arg .dotdotdot} must be a list or pairlist.",
-      .internal = TRUE
+      ..internal = TRUE
     )
   }
 

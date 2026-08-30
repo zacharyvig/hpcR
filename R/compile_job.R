@@ -60,7 +60,7 @@ S7::method(compile_job, class_job) <- function(
   } else {
     cli::cli_abort(
       "Unknown input type: {.code {job@input@input_type}}",
-      internal = TRUE
+      .internal = TRUE
     )
   }
 
@@ -125,7 +125,7 @@ S7::method(compile_job, class_job) <- function(
       torque = "submit_to_torque.pbs",
       local = "submit_to_local.sh",
       cli::cli_abort(
-        "Unsupported scheduler: {scheduler_name}", internal = TRUE
+        "Unsupported scheduler: {scheduler_name}", .internal = TRUE
       )
     )
   } else if (file_type == "run") {
@@ -133,7 +133,7 @@ S7::method(compile_job, class_job) <- function(
       job_language,
       R = "run_r_job.R",
       cli::cli_abort(
-        "Unsupported job language: {job_language}", internal = TRUE
+        "Unsupported job language: {job_language}", .internal = TRUE
       )
     )
   }
@@ -146,7 +146,7 @@ S7::method(compile_job, class_job) <- function(
     error = function(e) {
       cli::cli_abort(
         "Failed to find system file: {file_name}",
-        internal = TRUE
+        .internal = TRUE
       )
     }
   )
@@ -228,7 +228,7 @@ S7::method(compile_job, class_job) <- function(
   if (!rlang::is_quosure(code_quo)) {
     cli::cli_abort(
       "No code provided for job with {.code input_type = 'code'}",
-      internal = TRUE
+      .internal = TRUE
     )
   }
   # convert quosure to character string

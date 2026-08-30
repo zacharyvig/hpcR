@@ -43,11 +43,11 @@ packages(package_names = NULL, install = NULL, install_library = NULL)
 
 libraries(job = NULL, user = NULL, site = NULL)
 
-sequencing(upstream_name = NULL, upstream_id = NULL)
+sequencing(upstream_names = NULL, upstream_ids = NULL)
 
 settings(print_session_info = NULL, print_environment = NULL)
 
-job_sequence(sequence_name = NULL)
+job_sequence(sequence_name = NULL, ...)
 }
 \arguments{
 \item{job_name}{A character string. The name of the job used by the scheduler
@@ -113,12 +113,12 @@ variable and is set by default but can be overridden by the user.}
 \item{site}{A character vector of library paths to store in the job's site
 library paths which is usually shared across users in a multi-user}
 
-\item{upstream_name}{A character vector. The names of jobs on which this job
+\item{upstream_names}{A character vector. The names of jobs on which this job
 depends to run. Supplying job names to \code{sequencing()} is only supported
 when jobs are subsequently added a job sequence object. See
 \link{job_sequences} for details.}
 
-\item{upstream_id}{A character vector. The scheduler IDs of the jobs on
+\item{upstream_ids}{A character vector. The scheduler IDs of the jobs on
 which this job depends to run. Scheduler IDs are only available after a job
 has been submitted.}
 
@@ -134,6 +134,8 @@ runs, leading it to fail. Default: \code{FALSE}.}
 
 \item{sequence_name}{A character string. The name of the sequence when
 building a job sequence. See \link{job_sequences} for more details.}
+
+\item{...}{Additional arguments passed to some sugar functions. See details.}
 }
 \value{
 A job object with the properties specified by the user.

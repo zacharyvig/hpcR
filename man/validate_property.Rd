@@ -4,7 +4,15 @@
 \alias{validate_property}
 \title{Validate a property}
 \usage{
-validate_property(name, ...)
+validate_property(
+  name,
+  value,
+  use_default_settings = TRUE,
+  .call = rlang::caller_env(),
+  fail_on_invalid = TRUE,
+  allow_na = FALSE,
+  allow_missing = FALSE
+)
 }
 \description{
 Validate a property
