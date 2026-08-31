@@ -44,5 +44,5 @@ format_wall_time <- function(
   } else {
     wall_time <- paste0(hours_string, minutes_string, seconds_string)
   }
-  return(wall_time)
+  wall_time
 }

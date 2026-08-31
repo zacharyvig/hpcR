@@ -68,6 +68,7 @@ S7::method(submit, class_job) <- function(x) {
     input = compiled_job@.compiled@submission_input,
     input_type = compiled_job@.compiled@submission_input_type,
     scheduler_name = compiled_job@scheduler@scheduler_name,
+    upstream = compiled_job@.compiled@upstream,
     env_variables = compiled_job@.compiled@env_variables,
     control = compiled_job@.compiled@submit_control,
     .call = rlang::caller_env()
@@ -84,10 +85,143 @@ S7::method(submit, class_job) <- function(x) {
 }
 
 S7::method(submit, class_job_sequence) <- function(x) {
-  cli::cli_abort(
-    "Job sequence submission is not yet implemented.",
-    call = rlang::caller_env()
-  )
+  .call <- rlang::current_call()
+
+  graph <- x@sequence_graph
+  node_ids <- names(graph@node_objects)
+
+  if (!length(node_ids)) {
+    cli::cli_abort(
+      "Cannot submit an empty job sequence.",
+      call = .call
+    )
+  }
+
+  # validate sequence for submission
+  .validate_sequence_graph(graph = graph, .call = .call)
+
+  # keep track of submission ids (as opposed to object ids)
+  submitted_ids <- character(0)
+
+  # nodes that have not yet been submitted.
+  pending <- node_ids
+
+  # ---------------------------------------------------------------------------
+  # Submit until every node has been submitted.
+  #
+  # This loop does not wait for jobs to finish. It only waits for the
+  # submission process to produce the scheduler ID needed by downstream jobs.
+  # The scheduler itself handles execution-time dependencies.
+  # ---------------------------------------------------------------------------
+
+  while (length(pending)) {
+
+    ready <- vapply(
+      pending,
+      function(node_id) {
+        upstream_nodes <- graph@edges$from[graph@edges$to == node_id]
+        upstream_nodes <- unique(upstream_nodes)
+        # A job is ready to submit when every graph-defined upstream job has
+        # already been submitted and therefore has a scheduler ID.
+        all(upstream_nodes %in% names(submitted_ids))
+      },
+      logical(1)
+    )
+
+    # ready nodes are ones whose upstream jobs have submission ids
+    ready_nodes <- pending[ready]
+
+    # This should not happen for a valid DAG. It is a defensive check in case
+    # the graph was modified after validation or the internal state became
+    # inconsistent.
+    if (!length(ready_nodes)) {
+      cli::cli_abort(
+        c(
+          "Unable to determine the next job{?s} to submit.",
+          "x" = "No pending job has all required upstream scheduler IDs.",
+          "i" = "The sequence may contain a cycle or invalid dependency edges."
+        ),
+        call = .call
+      )
+    }
+
+    # submit "ready" nodes
+    for (node_id in ready_nodes) {
+      job <- graph@node_objects[[node_id]]
+
+      # upstream nodes for this job as object ids
+      upstream_nodes <- graph@edges$from[graph@edges$to == node_id]
+      upstream_nodes <- unique(upstream_nodes)
+
+      # object ids -> submission ids conversion
+      graph_dependency_ids <- unname(
+        submitted_ids[upstream_nodes]
+      )
+
+      # other user-supplied dependency ids
+      external_dependency_ids <- job@scheduler@sequencing@upstream_ids
+      dependency_ids <- unique(
+        c(
+          external_dependency_ids,
+          graph_dependency_ids
+        )
+      )
+
+      # add scheduler dependency IDs to the job before submission.
+      if (length(dependency_ids)) {
+        update <- list(
+          scheduler = list(
+            sequencing = list(
+              upstream_ids = dependency_ids
+            )
+          )
+        )
+        job <- .update_job(
+          e1 = job,
+          e2 = class_job_update(updates = update),
+          warn_overwrite = FALSE,
+          overwrite = TRUE,
+          skip_validation = TRUE,
+          .call = .call
+        )
+      }
+
+      # submit the job
+      scheduler_id <- submit(job)
+
+      if (is.null(scheduler_id) || !length(scheduler_id)) {
+        # failed submissions/NULL ids should be handled by invoke_system,
+        # but this guard is here just in case
+        cli::cli_abort(
+          c(
+            "Submission of job {.code {node_id}} returned no scheduler ID.",
+            "x" = "Downstream jobs cannot be submitted without this ID."
+          ),
+          call = .call
+        )
+      }
+
+      scheduler_id <- as.character(scheduler_id)
+      if (length(scheduler_id) != 1L || is.na(scheduler_id)) {
+        cli::cli_abort(
+          c(
+            "Submission of job {.code {node_id}} returned an invalid scheduler ID.",
+            "x" = "Expected one non-missing character value."
+          ),
+          call = .call
+        )
+      }
+
+      # add scheduler id to running list
+      submitted_ids[[node_id]] <- scheduler_id
+    }
+
+    # remove submitted jobs from pending list
+    pending <- pending[!pending %in% ready_nodes]
+  }
+
+  invisible(submitted_ids)
+
 }
 
 S7::method(submit, S7::class_any) <- function(x) {

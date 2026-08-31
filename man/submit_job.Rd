@@ -9,11 +9,10 @@ submit_job(
   input_type = c("script", "oneliner"),
   scheduler_name = get_supported_schedulers(),
   fail_on_error = FALSE,
-  depends_on = NULL,
+  upstream = NULL,
   env_variables = NULL,
   echo = FALSE,
-  control = list(),
-  .call = rlang::caller_env()
+  control = list()
 )
 }
 \arguments{
@@ -35,7 +34,7 @@ Default: 'slurm'}
 or issue a warning (\code{FALSE}) if the job submission fails. Default:
 FALSE (i.e., issue a warning).}
 
-\item{depends_on}{An optional character string of jobs or process ids that
+\item{upstream}{An optional character string of jobs or process ids that
 should complete before this job is executed.}
 
 \item{env_variables}{An optional named character vector containing
@@ -52,8 +51,6 @@ time it is scheduled. Default: \code{TRUE}}
 
 \item{control}{A list of additional, scheduler-specific arguments. See
 details.}
-
-\item{.call}{The calling environment, used for error messaging.}
 }
 \value{
 A character string containing the job ID of the scheduled job.

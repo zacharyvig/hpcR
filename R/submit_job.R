@@ -43,7 +43,7 @@
 #' @param fail_on_error Whether to stop execution of the script (\code{TRUE}),
 #' or issue a warning (\code{FALSE}) if the job submission fails. Default:
 #' FALSE (i.e., issue a warning).
-#' @param depends_on An optional character string of jobs or process ids that
+#' @param upstream An optional character string of jobs or process ids that
 #' should complete before this job is executed.
 #' @param env_variables An optional named character vector containing
 #' environment variables and their values to be passed to the \code{script} at
@@ -57,7 +57,6 @@
 #' time it is scheduled. Default: \code{TRUE}
 #' @param control A list of additional, scheduler-specific arguments. See
 #' details.
-#' @param .call The calling environment, used for error messaging.
 #'
 #' @return A character string containing the job ID of the scheduled job.
 #'
@@ -70,11 +69,10 @@ submit_job  <- function(
   input_type = c("script", "oneliner"),
   scheduler_name = get_supported_schedulers(),
   fail_on_error = FALSE,
-  depends_on = NULL,
+  upstream = NULL,
   env_variables = NULL,
   echo = FALSE,
-  control = list(),
-  .call = rlang::caller_env()
+  control = list()
 ) {
 
   input <- .job_obj_guard(input, "submit_job", alt_fn = "submit")
@@ -87,7 +85,7 @@ submit_job  <- function(
   checkmate::assert_string(input)
   checkmate::assert_string(scheduler_name)
   checkmate::assert_flag(fail_on_error)
-  checkmate::assert_character(depends_on, null.ok = TRUE)
+  checkmate::assert_character(upstream, null.ok = TRUE)
   checkmate::assert_character(env_variables, null.ok = TRUE)
   checkmate::assert_list(control, null.ok = TRUE)
 
@@ -96,15 +94,15 @@ submit_job  <- function(
     input = input,
     input_type = input_type,
     fail_on_error = fail_on_error,
-    depends_on = depends_on,
+    upstream = upstream,
     env_variables = env_variables,
     echo = echo,
     scheduler_name = scheduler_name,
     control = control,
-    .call = .call
+    .call = rlang::caller_call()
   )
 
-  return(out)
+  out
 }
 
 #' Internal function to dispatch to correct submission function
@@ -114,11 +112,11 @@ submit_job  <- function(
   input_type = c("script", "oneliner"),
   scheduler_name,
   fail_on_error = FALSE,
-  depends_on = NULL,
+  upstream = NULL,
   env_variables = NULL,
   echo = FALSE,
   control = list(),
-  .call = rlang::caller_env()
+  .call = rlang::caller_call()
 ) {
 
   # get submit function
@@ -143,7 +141,7 @@ submit_job  <- function(
     input = input,
     input_type = input_type,
     fail_on_error = fail_on_error,
-    depends_on = depends_on,
+    upstream = upstream,
     env_variables = env_variables,
     echo = echo,
     scheduler_name = scheduler_name,
@@ -151,7 +149,7 @@ submit_job  <- function(
     !!!control
   )
 
-  return(out)
+  out
 }
 
 
@@ -162,7 +160,7 @@ submit_job  <- function(
   input_type,
   scheduler_name,
   fail_on_error,
-  depends_on,
+  upstream,
   env_variables,
   echo = FALSE,
   scheduler_arguments = NULL,
@@ -171,7 +169,7 @@ submit_job  <- function(
     "afterok", "after", "afterany", "afterburstbuffer",
     "aftercorr", "afternotok"
   ),
-  .call = rlang::caller_env(),
+  .call = rlang::caller_call(),
   ...
 ) {
 
@@ -197,13 +195,13 @@ submit_job  <- function(
     }
   }
 
-  if (!is.null(scheduler_arguments)) {
+  if (!is.null(scheduler_arguments) && length(scheduler_arguments) > 0) {
     # scheduler arguments are pasted together with spaces
     # arguments like '--mem=5g' and '-n 12' are not handled differently
     scheduler_arguments <- paste(scheduler_arguments, collapse = " ")
   }
 
-  if (!is.null(env_variables)) {
+  if (!is.null(env_variables) && length(env_variables) > 0) {
     export_directive <- switch(
       scheduler_name,
       "slurm" = "--export=",
@@ -225,15 +223,15 @@ submit_job  <- function(
     scheduler_arguments <- paste(scheduler_arguments, env_variables)
   }
 
-  if (!is.null(depends_on)) {
+  if (!is.null(upstream) && length(upstream) > 0) {
     # multiple jobs are separated by colons
-    jcomb <- paste(depends_on, collapse = ":")
+    jcomb <- paste(upstream, collapse = ":")
     dependency_directive <- switch(
       scheduler_name,
       "slurm" = "--dependency=",
       "torque" = "-W depend=",
       cli::cli_warn(
-        paste("{.code depends_on} is currently not supported for scheduler",
+        paste("{.code upstream} is currently not supported for scheduler",
               "{.code {scheduler_name}}"),
         paste("Manually handling dependencies via {.code scheduler_arguments}",
               "is recommended."),
@@ -268,7 +266,7 @@ submit_job  <- function(
     echo = echo
   )
 
-  return(job_id)
+  job_id
 
 }
 
@@ -278,12 +276,12 @@ submit_job  <- function(
   input,
   input_type,
   fail_on_error,
-  depends_on,
+  upstream,
   env_variables,
   echo,
   repolling_interval = 60L,
   max_wait = 60 * 60 * 24,
-  .call = rlang::caller_env(),
+  .call = rlang::caller_call(),
   ...
 ) {
 
@@ -297,7 +295,7 @@ submit_job  <- function(
     )
   }
 
-  if (!is.null(env_variables)) {
+  if (!is.null(env_variables) && length(env_variables) > 0) {
     scheduler_arguments <- paste(
       sapply(.paste_args(env_variables), function(x) {
         # variables without values treated differently by local
@@ -313,15 +311,17 @@ submit_job  <- function(
   }
 
   # manually wait for dependencies for local
-  if (!is.null(depends_on)) {
+  if (!is.null(upstream) && length(upstream) > 0) {
     cli::cli_inform(
-      c("Waiting for the following jobs to finish:",
-        "{depends_on}"),
+      c(
+        "i" = "Local scheduler requires manually waiting for dependencies.",
+        "Waiting for the following jobs to finish: {upstream}"
+      ),
       .call = .call
     )
     # wait parameters are validated inside `wait_for_job()`
     wait_for_job(
-      depends_on, repolling_interval = repolling_interval,
+      upstream, repolling_interval = repolling_interval,
       max_wait = max_wait, scheduler_name = "sh"
     )
   }
@@ -344,5 +344,5 @@ submit_job  <- function(
     echo = echo
   )
 
-  return(job_id)
+  job_id
 }

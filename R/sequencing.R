@@ -13,8 +13,9 @@
 #'
 #' \pkg{hpcR} introduces the "arrow operator" (\code{\%->\%}) used to specify
 #' the order of the sequence, e.g., \code{job_A \%->\% job_B}. Branching and
-#' parallel downstream jobs are also supported via the \code{branch()} function.
-#' See the Details section.
+#' parallel downstream jobs are supported via the \code{branch()} function.
+#' Alternative, specifying dependencies via the \code{sequencing()}  sugar
+#' function is supported. See details below.
 #'
 #'
 #' @details
@@ -25,6 +26,8 @@
 #' @param rhs A job sequence or job object. This specifies which job or jobs are
 #' "downstream" from those in \code{lhs}. Note that \code{branch()} can be used
 #' to specify multiple downstream jobs and returns a job sequence.
+#' @param sequence_name A character string. The name of the job sequence to
+#' create.
 #' @param ... Branching jobs or sequences to be added to a job sequence.
 #'
 #' @return A job sequence object
@@ -74,6 +77,18 @@
     out@.locked <- TRUE
   }
   out
+}
+
+#' @rdname job_sequences
+#' @export
+job_sequence <- function(sequence_name = NULL, ...) {
+  seq <- .sequence_job_objs(
+    sequence_name = sequence_name,
+    ...,
+    .call = rlang::current_call()
+  )
+  seq@.locked <- TRUE
+  seq
 }
 
 # generic for the arrow operator
@@ -586,20 +601,6 @@ branch <- function(...) {
     labels = lookup$job_label,
     .call = .call
   )
-
-  has_upstream_ids <- lengths(lookup$upstream_ids) > 0
-  if (any(has_upstream_ids)) {
-    external <- lookup$job_label[has_upstream_ids]
-    msgs  <- c(
-      "Upstream scheduler IDs were supplied for job(s) in this sequence.",
-      "i" = "Affected job{?s}: {.code {external}}.",
-      "i" = paste0(
-        "These IDs are treated as external dependencies and are not added ",
-        "to the job sequence graph."
-      )
-    )
-    cli::cli_inform(msgs, call = .call)
-  }
 
   .validate_named_sequence(lookup, .call = .call)
 

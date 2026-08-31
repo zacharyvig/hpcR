@@ -51,6 +51,9 @@ S7::method(compile, S7::class_any) <- function(x) {
     job@input@input_value <- generated_script_path
   }
 
+  # gather upstream jobs if any
+  upstream_ids <- job@scheduler@sequencing@upstream_ids
+
   # gather env variables for submission
   env_variables <- .get_env_variables(job)
 
@@ -80,6 +83,7 @@ S7::method(compile, S7::class_any) <- function(x) {
   job@.compiled <- class_pb_compiled(
     submission_input = submission_input,
     submission_input_type = submission_input_type,
+    upstream = upstream_ids,
     env_variables = env_variables,
     submit_control = submit_control
   )
@@ -116,7 +120,7 @@ S7::method(compile, S7::class_any) <- function(x) {
       .get_library_env_vars(job)
     )
   }
-  return(vars)
+  vars
 }
 
 #' Internal function to retrieve system files for submission
@@ -178,7 +182,7 @@ S7::method(compile, S7::class_any) <- function(x) {
       job@scheduler@scheduler_name, property, value
     )
   })
-  return(unlist(out))
+  unlist(out)
 }
 
 #' Internal function to convert job property to the corresponding scheduler
@@ -230,7 +234,7 @@ S7::method(compile, S7::class_any) <- function(x) {
   if (job@scheduler@scheduler_name != "local") {
     control$scheduler_arguments <- .get_scheduler_arguments(job)
   }
-  return(control)
+  control
 }
 
 #' Internal function to prepare code input for submission (if supplied)

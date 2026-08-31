@@ -40,7 +40,7 @@ test_that(".submit_* succeeds on available scheduler", {
       input = script_path,
       input_type = "script",
       fail_on_error = TRUE,
-      depends_on = NULL,
+      upstream = NULL,
       env_variables = NULL,
       echo = FALSE
     )
@@ -51,7 +51,7 @@ test_that(".submit_* succeeds on available scheduler", {
       input_type = "oneliner",
       scheduler_name = scheduler,
       fail_on_error = TRUE,
-      depends_on = NULL,
+      upstream = NULL,
       env_variables = NULL,
       echo = FALSE,
       scheduler_arguments = sprintf("--output=%s/test_job_.out", tmp_dir)
@@ -84,7 +84,7 @@ test_that(".submit_to_local oneliner submission succeeds", {
     input = command,
     input_type = "oneliner",
     fail_on_error = TRUE,
-    depends_on = NULL,
+    upstream = NULL,
     env_variables = NULL,
     echo = FALSE
   )
@@ -154,7 +154,7 @@ test_that("local submit system file respects job_directory", {
     ),
     input_type = "script",
     fail_on_error = TRUE,
-    depends_on = NULL,
+    upstream = NULL,
     env_variables = env_variables,
     echo = FALSE
   )

@@ -14,7 +14,6 @@
 \alias{libraries}
 \alias{sequencing}
 \alias{settings}
-\alias{job_sequence}
 \title{Build a job to submit to an HPC}
 \usage{
 rjob(job_name = NULL)
@@ -46,8 +45,6 @@ libraries(job = NULL, user = NULL, site = NULL)
 sequencing(upstream_names = NULL, upstream_ids = NULL)
 
 settings(print_session_info = NULL, print_environment = NULL)
-
-job_sequence(sequence_name = NULL, ...)
 }
 \arguments{
 \item{job_name}{A character string. The name of the job used by the scheduler
@@ -131,11 +128,6 @@ debugging problems with the compute environment or R installation. Default:
 output file when the job starts. This can produce a lot of output, but can be
 useful if certain environment variables are not being found when your job
 runs, leading it to fail. Default: \code{FALSE}.}
-
-\item{sequence_name}{A character string. The name of the sequence when
-building a job sequence. See \link{job_sequences} for more details.}
-
-\item{...}{Additional arguments passed to some sugar functions. See details.}
 }
 \value{
 A job object with the properties specified by the user.

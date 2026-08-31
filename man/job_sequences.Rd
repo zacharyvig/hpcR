@@ -4,10 +4,13 @@
 \name{job_sequences}
 \alias{job_sequences}
 \alias{\%->\%}
+\alias{job_sequence}
 \alias{branch}
 \title{Create job sequences using the \code{\%->\%} operator}
 \usage{
 lhs \%->\% rhs
+
+job_sequence(sequence_name = NULL, ...)
 
 branch(...)
 }
@@ -18,6 +21,9 @@ jobs are "upstream" from those in \code{rhs}.}
 \item{rhs}{A job sequence or job object. This specifies which job or jobs are
 "downstream" from those in \code{lhs}. Note that \code{branch()} can be used
 to specify multiple downstream jobs and returns a job sequence.}
+
+\item{sequence_name}{A character string. The name of the job sequence to
+create.}
 
 \item{...}{Branching jobs or sequences to be added to a job sequence.}
 }
@@ -37,8 +43,9 @@ post-submission.
 
 \pkg{hpcR} introduces the "arrow operator" (\code{\%->\%}) used to specify
 the order of the sequence, e.g., \code{job_A \%->\% job_B}. Branching and
-parallel downstream jobs are also supported via the \code{branch()} function.
-See the Details section.
+parallel downstream jobs are supported via the \code{branch()} function.
+Alternative, specifying dependencies via the \code{sequencing()}  sugar
+function is supported. See details below.
 }
 \details{
 ...

@@ -762,10 +762,7 @@ test_that("job_sequence() treats upstream_ids as external dependencies", {
   job_a <- make_seq_job("a") +
     sequencing(upstream_ids = "12345")
 
-  expect_message(
-    seq <- job_sequence(NULL, job_a),
-    "Upstream scheduler IDs"
-  )
+  seq <- job_sequence(NULL, job_a)
 
   id_a <- job_object_id(job_a)
 
@@ -784,10 +781,7 @@ test_that("job_sequence() uses upstream_names for graph edges and ignores upstre
       upstream_ids = "12345"
     )
 
-  expect_message(
-    seq <- job_sequence(NULL, job_a, job_b),
-    "Upstream scheduler IDs"
-  )
+  seq <- job_sequence(NULL, job_a, job_b)
 
   expect_setequal(
     node_ids(seq),

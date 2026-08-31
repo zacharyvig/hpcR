@@ -209,6 +209,7 @@ class_pb_compiled <- S7::new_class(
   properties = list(
     submission_input = S7::class_character,
     submission_input_type = S7::class_character,
+    upstream = S7::class_character,
     env_variables = S7::class_character,
     submit_control = S7::class_list
   )

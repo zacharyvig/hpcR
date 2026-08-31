@@ -79,8 +79,6 @@
 #' @param upstream_ids A character vector. The scheduler IDs of the jobs on
 #' which this job depends to run. Scheduler IDs are only available after a job
 #' has been submitted.
-#' @param sequence_name A character string. The name of the sequence when
-#' building a job sequence. See \link{job_sequences} for more details.
 #' @param print_session_info If \code{TRUE}, print the \code{sessionInfo()} and
 #' \code{Sys.info()} in the output file when the job starts. Useful for
 #' debugging problems with the compute environment or R installation. Default:
@@ -89,7 +87,6 @@
 #' output file when the job starts. This can produce a lot of output, but can be
 #' useful if certain environment variables are not being found when your job
 #' runs, leading it to fail. Default: \code{FALSE}.
-#' @param ... Additional arguments passed to some sugar functions. See details.
 #'
 #' @returns A job object with the properties specified by the user.
 #'
@@ -290,16 +287,4 @@ settings <- function(
     print_environment = print_environment
   )
   class_job_update(updates = list(.run_settings = run_settings))
-}
-
-#' @rdname build_job
-#' @export
-job_sequence <- function(sequence_name = NULL, ...) {
-  seq <- .sequence_job_objs(
-    sequence_name = sequence_name,
-    ...,
-    .call = rlang::current_call()
-  )
-  seq@.locked <- TRUE
-  seq
 }

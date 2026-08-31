@@ -219,7 +219,7 @@ work and then needs to wait before continuing.
 
 ## Submit Dependent Jobs
 
-For scheduler-level dependencies, use `depends_on` in `submit_job()`. The
+For scheduler-level dependencies, use `upstream` in `submit_job()`. The
 dependency IDs are passed through to the scheduler-specific submission command.
 
 ```{r, eval = FALSE}
@@ -233,7 +233,7 @@ second_id <- submit_job(
   input = "fit_model.R",
   input_type = "script",
   scheduler_name = "slurm",
-  depends_on = first_id
+  upstream = first_id
 )
 ```
 
