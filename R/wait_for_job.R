@@ -48,6 +48,7 @@ wait_for_job <- function(
   job_ids <- .job_obj_guard(job_ids, "wait_for_job")
 
   scheduler_name <- match.arg(scheduler_name)
+  scheduler_name <- standardize_scheduler_name(scheduler_name)
 
   # validate input
   checkmate::assert_character(job_ids, min.len = 1, min.chars = 1)

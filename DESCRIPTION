@@ -3,7 +3,7 @@ Package: hpcR
 Title: Submit Jobs to High Performance Computing Clusters
 Version: 0.1.0
 Authors@R: 
-    c(person("Zach", "Vig", , "zachvig@unc.edu", role = c("aut", "cre")),
+    c(person("Zach", "Vig", , "zachvig@rocketmail.com", role = c("aut", "cre")),
     person("Michael", "Hallquist", role = c("aut")))
 Description: hpcR provides a simple interface for building jobs to submit to
     a high-performance cluster (HPC) and tracking them post-submission. For
@@ -24,7 +24,6 @@ Imports:
     utils
 Encoding: UTF-8
 LazyData: false
-RoxygenNote: 8.0.0
 Suggests: 
     knitr,
     rmarkdown,
@@ -52,3 +51,4 @@ Collate:
     'validate.R'
     'wait_for_job.R'
     'zzz.R'
+Config/roxygen2/version: 8.1.0

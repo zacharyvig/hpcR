@@ -9,11 +9,11 @@
 hpcR provides a simple interface for building jobs to submit to a high-performance cluster (HPC) and tracking them post-submission. For the more advanced user, the package also provides a straightforward but robust system for creating job dependencies/sequences for larger-scale projects.
 }
 \author{
-\strong{Maintainer}: Zach Vig \email{zachvig@unc.edu}
+\strong{Maintainer}: Zach Vig \email{zachvig@rocketmail.com}
 
 Authors:
 \itemize{
-  \item Zach Vig \email{zachvig@unc.edu}
+  \item Zach Vig \email{zachvig@rocketmail.com}
   \item Michael Hallquist
 }
 

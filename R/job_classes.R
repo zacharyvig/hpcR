@@ -275,10 +275,13 @@ class_job_update <- S7::new_class(
     .update_call = S7::class_any
   ),
   # this automatically gets the right error call for sugar functions
-  constructor = function(updates) {
+  constructor = function(updates, .update_call = NULL) {
+    if (is.null(.update_call)) {
+      .update_call <- rlang::caller_call()
+    }
     S7::new_object(
       S7::S7_object(), updates = updates,
-      .update_call = rlang::caller_call()
+      .update_call = .update_call
     )
   }
 )

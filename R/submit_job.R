@@ -322,7 +322,7 @@ submit_job  <- function(
     # wait parameters are validated inside `wait_for_job()`
     wait_for_job(
       upstream, repolling_interval = repolling_interval,
-      max_wait = max_wait, scheduler_name = "sh"
+      max_wait = max_wait, scheduler_name = "local"
     )
   }
 

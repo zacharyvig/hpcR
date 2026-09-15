@@ -178,11 +178,13 @@ S7::method(submit, class_job_sequence) <- function(x) {
         )
         job <- .update_job(
           e1 = job,
-          e2 = class_job_update(updates = update),
+          e2 = class_job_update(
+            updates = update,
+            .update_call = .call
+          ),
           warn_overwrite = FALSE,
           overwrite = TRUE,
-          skip_validation = TRUE,
-          .call = .call
+          skip_validation = TRUE
         )
       }
 
