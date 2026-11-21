@@ -23,6 +23,8 @@ NULL
 
 #' @title Submit a job or job sequence to an HPC scheduler
 #' @param x An \link{hpcR} job or job sequence object.
+#' @return The submitted job or job sequence, with scheduler ID(s) recorded.
+#'   Use \code{\link{job_id}} to extract them.
 #' @examples
 #' tmp_script <- tempfile(pattern = "my_script", fileext = ".R")
 #' writeLines("print('ok')", tmp_script)
