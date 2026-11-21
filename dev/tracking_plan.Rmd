@@ -1,0 +1,831 @@
+---
+title: "hpcR job tracking: implementation plan"
+subtitle: "Port of BrainGnomes SQLite job tracking to hpcR (S7, opt-in `track()`, pluggable backend)"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+# All code in this document is illustrative; nothing here is meant to be run.
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+# How to use this document
+
+This is the full, agreed plan for adding job tracking to hpcR. It is written so
+that an implementing agent can work from it without the original conversation,
+and so that a human can audit the decisions and examples.
+
+* **Status:** design is settled. No code has been written. Items in
+  [Open items to verify](#open-items) are things the implementer must check in
+  the code before relying on them (they could not be confirmed during design).
+* **Read order for an implementer:** Sections 1-4 (scope, background,
+  terminology, decisions), then 5-12 (the design), then 14-16 (file-by-file
+  changes, tests, build order). Section 13 (phase 2) is **not** to be built now.
+* **Conventions to follow:** the package uses S7, `cli` for messages
+  (`cli::cli_abort()` etc.), `+` builders in `R/sugar.R`, roxygen docs with
+  `@noRd` for internal functions, and testthat 3e. Keep new code consistent
+  with the surrounding files.
+* **Do not** commit this file; the `local/` folder is git-ignored and
+  `.Rbuildignore`d.
+
+# Goal and scope
+
+## Goal
+
+Let users opt in to recording what happens to submitted jobs (and sequences of
+jobs) in a database, and query that record with one friendly function,
+`status()`. The machinery comes from BrainGnomes
+(`R/job_tracking_functions.R`, `R/job_reconciliation.R`,
+`R/sqlite_functions.R`, and the `inst/` CLI scripts), re-designed for hpcR.
+
+## In scope (phase 1: build now)
+
+1. Uppercase status vocabulary across the whole package.
+2. `submit()` returns the job/sequence with submission data; new `job_id()`.
+3. Opt-in `+ track()` with a SQLite backend behind S7 generics.
+4. Sequence support (every job in a sequence shares one DB; dependency edges
+   recorded with their `wait_signal`).
+5. Compute-side status updates (`RUNNING`, `COMPLETED`, `FAILED`) from the
+   scheduler templates, with robust fallbacks.
+6. `status()` (works with or without tracking) and `class_job_status`.
+7. Reconciliation of the DB against the scheduler and the fallback log.
+8. User-supplied tags set at submit time.
+9. `inst/` reorganization into subfolders.
+
+## Out of scope for now (deferred)
+
+* **Job contracts** (immutable manifests, runtime receipts, submission-attempt
+  registry). These are a provenance layer on top of tracking, with
+  BrainGnomes-specific fields (`stage`, `stream`, `sub_id`, `ses_id`).
+* **Output manifests** (`capture_output_manifest()` in BrainGnomes).
+* **Projects** (grouping DBs). The DB-naming code is isolated in one function so
+  this can be added later.
+* **Storing a serialized job object (`job_obj` BLOB)** per row.
+* **Phase 2** (Section 13): sub-jobs spawned from inside a running job, and
+  runtime tags set from inside a script.
+
+# Background: what exists today
+
+## hpcR (verified in this worktree)
+
+* `R/job_methods.R`: `submit(class_job)` currently returns `invisible(<scheduler
+  id>)`. It calls `.hydrate_defaults`, `.validate_job`, `.prepare_job_packages`,
+  `.compile_job`, then `.submit_job`. `submit(class_job_sequence)` loops over
+  ready nodes, calls `submit(job)`, keeps `submitted_ids` (named by object ID)
+  and passes `scheduler@sequencing@upstream_ids`; it returns
+  `invisible(submitted_ids)`. `clone()` is implemented (`.clone_object()` gives a
+  new `object_id` and `created_at`); only its NEWS entry is stale.
+* `R/check_job_status.R`: `.standardize_statuses()` maps scheduler states to the
+  lowercase set `queued, running, suspended, complete, failed, cancelled,
+  missing, unknown`. Backends: `.check_job_status_slurm()` (`sacct -X -P`; a
+  non-zero exit warns and returns `missing` for all jobs),
+  `.check_job_status_torque()` (`qstat -f`, then `tracejob`, one call per job;
+  cancel detection is a text regex; exit status 0 means complete),
+  `.check_job_status_local()` (`ps`; a PID absent from `ps` is assumed
+  complete, so a killed local job looks complete; local is unsupported on
+  Windows via `.assert_local_supported`).
+* `R/wait_for_job.R`: uses `terminal_statuses <- c("failed","cancelled",
+  "complete")` and `.give_status_update()`; already documents the idea of a
+  parent script waiting on the sub-jobs it spawns.
+* `R/utils.R`: `.job_obj_guard(x, fn, alt_fn = NULL)` aborts when handed a job
+  object (used by `check_job_status()` and `wait_for_job()`); it supports an
+  `alt_fn` hint line.
+* `R/update_job.R`: `+` is defined only for `(class_job, class_job_update)`,
+  with `overwrite`/`warn_overwrite`; lines ~103-105 already warn about
+  overwritten properties. `class_job_sequence` is defined in `R/job_classes.R`
+  (~line 336).
+* `R/submit_job.R`: dependency setting is `wait_signal` with options `afterok`
+  (default), `after`, `afterany`, `afterburstbuffer`, `aftercorr`,
+  `afternotok`.
+* `R/compile_job.R`: `.get_system_file()` is the **only** place that resolves
+  `inst/` file paths (`submit_to_slurm.sbatch`, `submit_to_torque.pbs`,
+  `submit_to_local.sh`, `run_r_job.R`) via `system.file()`.
+* `R/defaults.R`: `.hydrate_defaults` / `.job_defaults()` hold package defaults.
+* `inst/run_r_job.R` is a standalone wrapper (parses args, loads packages,
+  `source()`s the user script inside `tryCatch`). It contains `TODO` comments
+  marking where status updates belong (STARTED, FAILED+cascade, COMPLETED) and
+  commented-out sub-job code (`wait_for_subs`, `SUB_JOB_IDS`).
+* NEWS: compute-time runners were deliberately made light (no `pacman`,
+  `R.utils`, `cli`).
+* Tests that will need updating: `tests/testthat/test-status-wait.R`,
+  `test-run.R` (~lines 95, 202), `test-submit-invoke.R` (~lines 172, 177, 256,
+  347, 445). `test-submit-invoke.R` line ~177 already anticipates
+  `submit(sequence)` returning an updated sequence. About 73 lowercase status
+  strings appear across `R/`, tests, vignettes and README.
+
+## BrainGnomes (reference; `zacharyvig/BrainGnomes`)
+
+* Statuses: `QUEUED, STARTED, FAILED, COMPLETED, FAILED_BY_EXT, CANCELLED`.
+  `FAILED_BY_EXT` means "a downstream job's upstream failed and the sequence is
+  set to stop on failure".
+* `child_level` (1 = downstream, 2 = sub-job) is only a label written by
+  `add_tracked_job_parent()`. The cascade is a recursive query over
+  `parent_id`; levels are **not** needed once an edge table exists.
+* `inst/upd_job_status.R`: retries resolving the job row up to 40 times (0.25 s
+  apart) for `STARTED` (short-job race); writes are strict when a DB is given.
+* SQLite practices worth keeping: `BEGIN IMMEDIATE`, a 10 s busy handler,
+  compare-and-set updates, schema migrations by `ALTER TABLE`.
+* `reconcile_tracked_jobs()`: selects non-terminal rows (and externally failed
+  rows without scheduler confirmation), queries the scheduler in chunks of 200
+  per scheduler, plans actions (`UPDATE_TERMINAL_FAILURE`, `VERIFY_OUTPUTS`,
+  `CONFIRM_OUTCOME`), `dry_run = TRUE` by default, stops early if the scheduler
+  is unavailable.
+* CLI scripts in `inst/` (`insert_tracked_job.R`, `upd_job_status.R`,
+  `add_parent.R`) are thin wrappers that parse `--flags` and call package
+  functions; templates call them with traps for `SIGTERM/SIGINT/SIGHUP/SIGQUIT`.
+  The sibling package `fmri.pipeline` does the same, and its `R_batch_job`
+  class writes status calls directly into a generated R wrapper.
+
+# Terminology (strict)
+
+| Term | Meaning |
+|---|---|
+| **upstream / downstream** | Jobs related by a sequence (`a %->% b`: `a` is upstream of `b`). |
+| **parent / child (sub-job)** | A job that itself spawns jobs while running. **Never** use for `%->%`. Phase 2 only. |
+| **sequence** | A `class_job_sequence` (jobs plus dependency edges). |
+| **row** | One tracked submission in the DB (`row_id`). |
+| **breadcrumb** | A line in the hpcR fallback log written when a compute-side hook cannot reach the DB (Section 10.5). |
+| **reported by** | Who established a row's status: `JOB`, `SCHEDULER`, or `INFERRED`. |
+| **reconciliation** | Comparing DB rows (and breadcrumbs) against the scheduler and repairing them. |
+
+No `parent_id` or `child_level` columns for sequences. A reserved nullable
+`parent_row` column exists for phase 2 sub-jobs.
+
+# Decision log
+
+| # | Decision |
+|---|---|
+| 1 | Tracking is **opt-in** via `+ track()`. |
+| 2 | Job contracts are deferred. |
+| 3 | `status()` is the main query function; `check_job_status()` stays the advanced scheduler-level function. |
+| 4 | Default tracking timeout is 10 s; set globally with `options(hpcR.tracking_timeout = )` or per job with `track(timeout = )`. |
+| 5 | `track()` takes only an optional `db` path (SQLite file, created if missing). Folder choice goes through `job_directory()`. |
+| 6 | Default DB: `<job_directory>/.hpcR/hpcR_<basename>.sqlite`; file name computed in one internal function (`.tracking_db_name()`). |
+| 7 | All jobs in a sequence share one DB. Explicit differing `db` paths in one sequence are an error; derived locations never conflict. |
+| 8 | `a %->% b + track()` parses as `(a %->% b) + track()`; a new `+` method applies it to every member job. |
+| 9 | One uppercase status vocabulary package-wide (package is unreleased): `QUEUED RUNNING SUSPENDED COMPLETED FAILED CANCELLED SKIPPED MISSING UNKNOWN` plus `UNAVAILABLE`. |
+| 10 | `SKIPPED` replaces `FAILED_BY_EXT`. `QUEUED` is kept (not `PENDING`). |
+| 11 | `submit()` returns the job/sequence carrying submission data; `job_id()` is the accessor; a print method shows the ID so an unassigned result is not lost. No hint on unassigned results. |
+| 12 | `check_job_status()`/`wait_for_job()` keep rejecting job objects, with an added hint to use `job_id()`. |
+| 13 | `status()` works with or without tracking (resolution by input type, Section 9). |
+| 14 | Dependency graph stored as an edge table with the `wait_signal` per edge; no levels. |
+| 15 | Backend abstraction: S7 generics (`tracking_*`) dispatching on `class_tracking_backend`; SQLite is the first (only) implementation. |
+| 16 | The cascade is `tracking_cascade()`; an `include_children` argument arrives with phase 2. |
+| 17 | Reconciliation is in phase 1. `status(refresh = FALSE)` is the default; a staleness hint is printed. |
+| 18 | Tags (user key/value info supplied at submit time) are in phase 1. |
+| 19 | The scheduler templates (all languages) own the `RUNNING/COMPLETED/FAILED` writes. `run_r_job.R` holds only R-only logic (sub-jobs, phase 2). |
+| 20 | hpcR must be installed on compute nodes for tracked jobs, but hook failures must never affect the job (robust fallbacks, Section 10). |
+| 21 | Fallback log ("breadcrumb") is hpcR-specific, read by reconciliation; scheduler/job logs are never parsed. |
+| 22 | Put code in existing files; only one new R file, `R/tracking.R`. |
+| 23 | `inst/` is reorganized into subfolders. |
+
+# User-facing API
+
+## Building and submitting
+
+```{r}
+job <- rjob("preproc") + script("preproc.R") + scheduler("slurm") +
+  resources(cpus = 4, memory = "8G") +
+  track()                                   # default DB under job_directory()
+
+job <- submit(job)        # returns the job WITH submission data (assign it!)
+job_id(job)               # scheduler id, e.g. "4821"
+status(job)               # reads the tracking DB
+
+track("path/to/my.sqlite")                   # explicit DB
+track(timeout = 30)                          # per-job timeout (seconds)
+track(tags = list(subject = "01", step = "preproc"))
+
+# sequence: tracking applies to every member job
+sq <- (a %->% b %->% c) + track()
+sq <- submit(sq)
+job_id(sq)                # named vector: names = object ids
+status(sq)                # upstream -> downstream tree
+```
+
+If the user forgets to assign, the visible return value prints:
+
+```
+<hpcR job "preproc"> submitted
+  scheduler: slurm   job id: 4821   tracking: ./.hpcR/hpcR_preproc.sqlite
+```
+
+## Function reference
+
+| Function | Where | Notes |
+|---|---|---|
+| `track(db = NULL, timeout = NULL, cascade = TRUE, tags = NULL)` | `R/sugar.R` | Builds a `class_job_update` that sets the `.tracking` property (a `class_pb_tracking`). |
+| `status(x, ..., refresh = FALSE)` | `R/job_methods.R` | S7 generic; see Section 9. Returns `class_job_status`. |
+| `job_id(x)` | `R/job_methods.R` | Scalar for a job, named character vector for a sequence, `character(0)` if unsubmitted. |
+| `tracking_*` generics | `R/tracking.R` | Exported as advanced/developer-facing (Section 7.3). |
+| `check_job_status()`, `wait_for_job()` | existing | Uppercase statuses; reject job objects with a `job_id()` hint. |
+
+# Status vocabulary
+
+| Status | Meaning |
+|---|---|
+| `QUEUED` | Submitted, not started. |
+| `RUNNING` | Started on a node. |
+| `SUSPENDED` | Scheduler-suspended. |
+| `COMPLETED` | Finished successfully. |
+| `FAILED` | Finished unsuccessfully (non-zero exit, timeout, OOM, node failure...). |
+| `CANCELLED` | Cancelled by user/scheduler. |
+| `SKIPPED` | **Will not run** because an upstream job's outcome made its dependency unsatisfiable and the sequence is set to stop (replaces BrainGnomes `FAILED_BY_EXT`). Never started. |
+| `MISSING` | Scheduler no longer knows the job and there is no other evidence. |
+| `UNKNOWN` | A scheduler state hpcR cannot map. |
+| `UNAVAILABLE` | The scheduler query itself failed (distinct from `MISSING`). Query-time value; not stored as a row status. |
+
+Terminal statuses: `COMPLETED, FAILED, CANCELLED, SKIPPED`.
+Non-terminal ("pending"): `QUEUED, RUNNING, SUSPENDED`.
+
+**Migration:** change case in `.standardize_statuses()` (keep the existing
+state mapping, rename `complete` to `COMPLETED`), `wait_for_job()`'s
+`terminal_statuses`, print/summary code, docs, vignettes, README, and tests.
+Grep for lowercase literals (about 73). Add `UNAVAILABLE` to the Slurm path
+when `sacct` exits non-zero (today it returns `missing` for every job, which
+conflates "scheduler unreachable" with "job not found").
+
+## `reported_by`
+
+| Value | Meaning |
+|---|---|
+| `JOB` | The job's own hook (or its breadcrumb) reported it. |
+| `SCHEDULER` | Reconciliation obtained it from `sacct`/`qstat`/`ps`. |
+| `INFERRED` | Derived by the cascade (e.g. `SKIPPED`), not observed. |
+
+# Data model
+
+## DB location
+
+* `track(db = NULL)`: `db` is an optional path to a SQLite file; created if
+  missing (parent dirs created).
+* Default: `<job_directory>/.hpcR/hpcR_<basename>.sqlite`, computed only by
+  `.tracking_db_name()` / `.resolve_tracking_db()`. Resubmitting the same job
+  reuses the same file because directory and name are stable.
+* Sequences: if members carry different **explicit** `db` paths, abort naming
+  them. Derived (default) locations never conflict: use the first tracked
+  job's job directory and emit one message naming the DB.
+* Open item: confirm exactly what `<basename>` is (planned: the job's
+  `job_name`; for a sequence, the first/root tracked job's name).
+
+## Schema (SQLite, `PRAGMA user_version = 1`)
+
+```{sql}
+CREATE TABLE job_tracking (
+  row_id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  object_id       TEXT NOT NULL,          -- hpcR job object_id
+  sequence_id     TEXT,                   -- shared by all jobs of one sequence
+  job_name        TEXT,
+  scheduler_name  TEXT NOT NULL,          -- slurm | torque | local
+  scheduler_job_id TEXT NOT NULL,
+  status          TEXT NOT NULL,
+  reported_by     TEXT NOT NULL,          -- JOB | SCHEDULER | INFERRED
+  parent_row      INTEGER,                -- RESERVED for phase 2 sub-jobs (NULL now)
+  submit_time     TEXT,
+  start_time      TEXT,
+  end_time        TEXT,
+  exit_code       INTEGER,
+  note            TEXT,                   -- e.g. 'recovered from breadcrumb: hpcR_not_found'
+  job_directory   TEXT,
+  breadcrumb      TEXT,                   -- path of the fallback log for this row
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  UNIQUE (scheduler_name, scheduler_job_id)
+);
+
+CREATE TABLE job_dependencies (
+  upstream_row    INTEGER NOT NULL REFERENCES job_tracking(row_id),
+  downstream_row  INTEGER NOT NULL REFERENCES job_tracking(row_id),
+  signal          TEXT NOT NULL,          -- the edge's wait_signal
+  PRIMARY KEY (upstream_row, downstream_row)
+);
+
+CREATE TABLE job_tags (
+  row_id  INTEGER NOT NULL REFERENCES job_tracking(row_id),
+  key     TEXT NOT NULL,
+  value   TEXT,
+  source  TEXT NOT NULL,                  -- SUBMIT now; RUNTIME in phase 2
+  set_at  TEXT NOT NULL,
+  PRIMARY KEY (row_id, key)
+);
+
+CREATE TABLE tracking_events (            -- applied breadcrumb lines (idempotency)
+  event_key  TEXT PRIMARY KEY,            -- "<job_id>|<status>|<timestamp>"
+  row_id     INTEGER,
+  applied_at TEXT NOT NULL
+);
+```
+
+Connection practice: `BEGIN IMMEDIATE` for writes, busy timeout = the job's
+tracking timeout (default 10 s). Writers must **refuse to write** if
+`user_version` is greater than the installed hpcR understands.
+Timestamps: ISO-8601 UTC text.
+
+## S7 classes (in `R/job_classes.R`)
+
+| Class | Purpose |
+|---|---|
+| `class_pb_tracking` | Property block stored in the job's `.tracking` property: `db` (chr or NULL), `backend` (`"sqlite"`), `timeout` (num or NULL), `cascade` (lgl, default `TRUE`), `tags` (named list). |
+| `class_tracking_backend` | Abstract; dispatch target for the generics. |
+| `class_tracking_sqlite` | Subclass holding `db` path and `timeout`. **Built at use time from the job's `class_pb_tracking`; never stored in the job.** |
+| `class_job_status` | A tibble plus `source` (`"tracking"` or `"scheduler"`), `db` path, `queried_at`. Has print, `as.data.frame`, `as_tibble` methods. |
+
+No `class_tracked_job`; rows are tibbles. Jobs gain properties `.tracking`
+(`class_pb_tracking` or NULL) and `.submission` (list: scheduler job id,
+scheduler name, submit time, db path; NULL until submitted). Properties
+starting with `.` are already excluded from scheduler directives by
+`.get_scheduler_arguments(exclude = "^[.]")`; keep it that way.
+
+## Generics (in `R/tracking.R`)
+
+All dispatch on `backend` (a `class_tracking_backend`); the SQLite methods live
+in the same file.
+
+| Generic | Responsibility |
+|---|---|
+| `tracking_init(backend)` | Create/migrate schema; set `user_version`. |
+| `tracking_register(backend, jobs, edges, tags)` | Insert rows (status `QUEUED`, `reported_by = "JOB"` since the submitter is recording its own submission), edges and tags; return `row_id`s. |
+| `tracking_update(backend, row_id, status, reported_by, expected_status = NULL, exit_code = NULL, end_time = NULL, note = NULL, cascade = FALSE)` | Compare-and-set update (`WHERE status = expected_status` when given); returns logical (updated or not). Cascade per Section 8.3. |
+| `tracking_resolve_id(backend, scheduler_job_id, scheduler_name = NULL, retries = 0, wait = 0.25)` | Scheduler id to `row_id`, with retry for the short-job race. |
+| `tracking_query(backend, row_id = NULL, sequence_id = NULL, object_id = NULL)` | Return rows (and edges/tags) as tibbles. |
+| `tracking_pending(backend)` | Rows whose status is non-terminal, or `reported_by = INFERRED`. |
+| `tracking_cascade(backend, row_id)` | Propagate a terminal outcome to downstream rows by edge `signal`. (`include_children` added in phase 2.) |
+| `tracking_reconcile(backend, dry_run = TRUE, ...)` | Section 11. Returns an action tibble. |
+
+# Submission, `job_id()` and the guard
+
+* `submit(class_job)` returns the job (visibly) with `.submission` filled in.
+  `submit(class_job_sequence)` returns the sequence with each member updated.
+  Update the existing assertions/tests that capture the old return value.
+* If the job has `.tracking`: resolve the DB, `tracking_init()`, build the
+  `class_tracking_sqlite` backend, `tracking_register()` after the scheduler id
+  is known, and record edges with the edge `wait_signal`.
+* `job_id(x)`: scalar for a job; named character vector (names = object ids) for
+  a sequence; `character(0)` if unsubmitted.
+* `.job_obj_guard()`: keep aborting on job objects, and add a line:
+  "Use `job_id(job)` to get the scheduler id."
+* Print methods (in `R/print_job.R`) show scheduler, job id, tracking DB.
+
+# Sequences
+
+## 8.1 Applying `track()`
+
+Add `+` for `(class_job_sequence, class_job_update)` in `R/update_job.R`: apply
+the update to every member job, reusing the existing overwrite logic. The
+overwrite warning (already present for single jobs) must **name the jobs**.
+
+## 8.2 Partial tracking
+
+Only tracked jobs are recorded. At submit, emit one message listing untracked
+members and suggesting `+ track()` on the whole sequence. A tracked job whose
+upstream job is untracked gets a warning (its dependency cannot be recorded).
+
+## 8.3 Edges and the cascade
+
+Edges are recorded in `job_dependencies` with the edge's `wait_signal`.
+
+When a job reaches a terminal state (via a hook or reconciliation) and
+`cascade = TRUE`, walk downstream edges recursively (recursive CTE):
+
+| Edge `signal` | Upstream outcome that makes the downstream job unsatisfiable |
+|---|---|
+| `afterok`, `aftercorr` | upstream `FAILED` or `CANCELLED` |
+| `afternotok` | upstream `COMPLETED` |
+| `afterany`, `after`, `afterburstbuffer` | never (no cascade) |
+
+Affected downstream rows that are still `QUEUED` become `SKIPPED` with
+`reported_by = INFERRED` and a `note` naming the upstream job. Rows already
+terminal or `RUNNING` are left alone. Local jobs: treat edges as `afterok`
+unless the edge says otherwise (open item: local dependencies appear to be
+polling-based via `repolling_interval`/`max_wait`; verify).
+
+**Unsatisfiable dependency, explained.** With `afterok`, if the upstream job
+fails the downstream job can never start. Slurm leaves it `PENDING` with reason
+`DependencyNeverSatisfied` unless `kill_invalid_depend` is set; Torque holds it
+similarly. Without intervention it sits in the queue forever. The cascade marks
+it `SKIPPED` so the database reflects reality, and reconciliation later notes
+whether it should be cancelled in the scheduler (Section 11).
+
+# `status()`
+
+## 9.1 Resolution by input type
+
+| Input | Behaviour |
+|---|---|
+| Tracked job or sequence (submitted) | Read the DB (`source = "tracking"`). |
+| Path to a SQLite tracking file | Read that DB. |
+| Scheduler ids plus `scheduler_name` | Use `check_job_status()` (`source = "scheduler"`). |
+| Untracked, unsubmitted object | Error with a hint (`+ track()` / `submit()`). |
+| Untracked but submitted object | Use `.submission` scheduler id via `check_job_status()` (`source = "scheduler"`). |
+
+## 9.2 `refresh`
+
+`status(x, refresh = FALSE)` is the default: one local DB read; read-only; works
+offline. `refresh = TRUE` runs reconciliation with writes (Section 11) before
+reading. When `refresh = FALSE`, print a **staleness hint** if there are
+unapplied breadcrumbs or non-terminal rows, e.g.:
+
+```
+2 jobs RUNNING; last updated 17:31. Use status(refresh = TRUE) to check the scheduler.
+```
+
+## 9.3 Printing (`class_job_status`)
+
+Use the existing `cli` style (themed rows via `cli::cli_format_method`, like
+`.format_job_summary()` in `R/print_job.R`). Show the query time. For a
+sequence, show an upstream-to-downstream tree. Show `note` when present.
+
+```
+<hpcR status> source: tracking (./.hpcR/hpcR_preproc.sqlite)  queried 17:44:10
+ preproc   4821   COMPLETED   job   (recovered from breadcrumb: hpcR_not_found)
+   +- model  4822   COMPLETED   job
+   +- report 4823   SKIPPED     inferred   (upstream "model" FAILED)
+```
+
+# Compute side (templates, hooks, fallbacks)
+
+## 10.1 Responsibilities
+
+The scheduler templates own `RUNNING`, `COMPLETED` and `FAILED` for **all
+languages**. Rationale: they see the real exit code and signals, work for non-R
+jobs, and see failures before R starts. `run_r_job.R` does not write
+`RUNNING/COMPLETED/FAILED` in phase 1 (this resolves its status `TODO`s):
+
+| `run_r_job.R` TODO | Handled by |
+|---|---|
+| STARTED (before packages load) | template, just before `Rscript` |
+| FAILED + cascade after the main `tryCatch` | template (non-zero exit via `stop()`) |
+| FAILED after saving output / post-subs code (commented out) | template (non-zero exit) |
+| COMPLETED (end of script) | template (exit 0) |
+| add parents / `wait_for_job` on sub-jobs / sub-job failure | `run_r_job.R` (phase 2) |
+
+Remove the empty `update_job_status()` stub from `run_r_job.R`.
+
+## 10.2 `inst/` layout
+
+```
+inst/
+  templates/  submit_to_slurm.sbatch  submit_to_torque.pbs  submit_to_local.sh
+  runners/    run_r_job.R
+  shell/      tracking_hooks.sh      # bash functions sourced by all three templates
+  bin/        tracking_update.R      # CLI entry point (phase 2: tracking_add_child.R, tracking_tag.R)
+```
+
+Update `.get_system_file()` in `R/compile_job.R` to one lookup of
+`templates/<file>` and `runners/<file>`. Tests only check `basename()`.
+Pass the hooks and CLI paths to templates the same way `run_system_file` is
+passed today.
+
+## 10.3 Environment variables (set only for tracked jobs)
+
+| Variable | Value |
+|---|---|
+| `HPCR_TRACKING_DB` | DB path. **If unset, every hook is a no-op.** |
+| `HPCR_TRACKING_TIMEOUT` | busy/hook timeout in seconds |
+| `HPCR_TRACKING_CASCADE` | `TRUE`/`FALSE` |
+| `HPCR_OBJECT_ID` | hpcR job object id |
+| `HPCR_SEQUENCE_ID` | sequence id (if any) |
+| `HPCR_LIB` | hpcR's library directory on the submitting machine |
+| `HPCR_BREADCRUMB` | `<job_directory>/.hpcR/pending/<db basename>.log` |
+
+The scheduler job id comes from the existing `JOB_ID` export in the templates.
+Build the values in `.tracking_env_vars(job)` (in `R/submit_job.R`).
+
+## 10.4 Hooks
+
+`inst/shell/tracking_hooks.sh` defines:
+
+* `hpcr_track_running`
+* `hpcr_track_finish <exit_code>` (exit 0 -> `COMPLETED`; otherwise
+  `FAILED` with `--cascade` when `HPCR_TRACKING_CASCADE` is `TRUE`)
+* `hpcr_track_signal <SIG>` (used by traps for `SIGTERM SIGINT SIGHUP SIGQUIT`)
+
+Template flow (the existing `set -euo pipefail` must not abort before
+reporting):
+
+```bash
+source "$hpcr_hooks_file"
+trap 'hpcr_track_signal TERM' TERM    # likewise INT HUP QUIT
+hpcr_track_running
+
+set +e
+"${R_HOME}/bin/Rscript" --vanilla "$run_system_file" ...   # or the non-R command
+job_status=$?
+set -e
+
+hpcr_track_finish "$job_status"
+exit "$job_status"
+```
+
+Wall-time kills usually send `SIGTERM` first, so many timeouts are reported by
+the **job** (`FAILED`, `reported_by = JOB`). Only `SIGKILL`, out-of-memory
+kills and node failures reach reconciliation as scheduler-reported.
+
+`inst/bin/tracking_update.R`: `--db --job_id --status --cascade --timeout`.
+Parses flags (copy the small `parse_args` style used by `run_r_job.R`), prepends
+`HPCR_LIB` to `.libPaths()`, loads hpcR, and calls the internal
+`.cli_tracking_update()` in `R/tracking.R`. That function: builds the backend,
+`tracking_resolve_id(retries = 40, wait = 0.25)` for the short-job race (the
+`RUNNING` write can arrive before the row exists), then `tracking_update()`.
+
+## 10.5 Failure handling: tracking can never hurt a job
+
+Principle: a hook failure **never changes the job's exit code, never hangs it,
+and always leaves a trace**. Do **not** add hpcR to the job's `packages()`
+(`run_r_job.R`'s `load_packages()` aborts on a missing package, which would
+fail the job over a tracking problem).
+
+Layers, in order:
+
+1. **Find hpcR.** Prepend `HPCR_LIB` to `.libPaths()`; use the same
+   `${R_HOME}/bin/Rscript` the job uses.
+2. **Guard the call.** Run the hook's `Rscript` under `timeout` (default 30 s)
+   followed by `|| true`.
+3. **Failure causes** handled by step 4: hpcR missing; DBI/RSQLite missing; DB
+   path not visible from the node; DB locked past its timeout; DB schema newer
+   than the installed hpcR (the script refuses to write).
+4. **Breadcrumb.** The bash hook appends one tab-separated line to
+   `$HPCR_BREADCRUMB` using plain `printf >>` (no R needed):
+   `timestamp<TAB>job_id<TAB>status<TAB>exit_code<TAB>reason<TAB>host`.
+   Small appends are effectively atomic on POSIX filesystems. If the directory
+   is not writable, print the same line to the job's own log.
+5. **One clear warning** to the job log per failure *kind*
+   (`[hpcR tracking] could not write RUNNING: <reason>`), not per hook.
+6. **Repair later.** `status(refresh = TRUE)` / `tracking_reconcile()` reads the
+   breadcrumb file (Section 11.4), then asks the scheduler about the rest.
+7. **Surface it.** The staleness hint (Section 9.2) and the row `note`.
+
+Breadcrumb file facts: it is hpcR-specific (not a scheduler log), one file per
+DB beside the job directory's `.hpcR/`, written **only** when a hook fails
+(~100 bytes/line, 2-3 lines per job), so size is negligible (worst case 100k
+jobs ~ 30 MB). No pruning in phase 1; document this. If needed later: rename the
+file atomically, read and apply it, put unapplied lines back; prune fully
+applied lines older than N days. Never rewrite in place (races appenders).
+Applied lines stay as an audit trail; `tracking_events` records the applied
+`event_key`s so reapplication is a no-op.
+
+## 10.6 Worked fallback examples
+
+**Example 1: hpcR missing on the node (Slurm job 4821).**
+`hpcr_track_running` calls `Rscript`; `loadNamespace("hpcR")` fails. The hook
+appends `2026-11-21T17:31:02 4821 RUNNING - hpcR_not_found` to the breadcrumb
+file and prints one warning to the job log. The job runs and finishes;
+`hpcr_track_finish 0` fails the same way and appends a `COMPLETED` line
+(exit code 0, no repeated warning). The DB still says `QUEUED`. Later,
+`status(job, refresh = TRUE)` reads both lines, applies `RUNNING` (17:31) and
+`COMPLETED` (17:44) as job-reported with compare-and-set writes, records the
+event keys, and prints
+`COMPLETED (recovered from breadcrumb: hpcR_not_found)`. The breadcrumb is
+better evidence than the scheduler here (it has the exit code and exact end
+time, which `sacct`/`qstat`/`ps` may not).
+
+**Example 2: killed before it can report (out of memory).** `RUNNING` was
+written normally. The kernel sends `SIGKILL`; no hook runs, no breadcrumb.
+`status(refresh = TRUE)` asks Slurm, sees `FAILED` (`OUT_OF_MEMORY`), sets
+`FAILED` with `reported_by = SCHEDULER`, and the cascade marks downstream rows
+`SKIPPED` (`reported_by = INFERRED`).
+
+**Example 3: DB not visible from the node.** The DB is on a login-node-only
+disk. The hook cannot open it and writes a breadcrumb under the job directory;
+if that is also invisible it prints the line to the job log only. On the
+submitting machine the DB says `QUEUED` while the scheduler says `COMPLETED`;
+reconciliation fixes this for non-local jobs, and exact times can be recovered
+from the log.
+
+**Example 4: DB schema newer than the node's hpcR.** The hook sees
+`user_version` is higher than it understands, refuses to write, and logs a
+breadcrumb with reason `schema_newer` and a warning to update hpcR on the node.
+
+**Example 5: local job.** Same machine, so hpcR is almost always present. If a
+hook fails anyway, the breadcrumb is the only record. Reconciliation **never**
+sets a local row to `COMPLETED` from absence in `ps`, but may from a breadcrumb
+(the job itself reported success).
+
+# Reconciliation
+
+Implemented by `tracking_reconcile(backend, dry_run = TRUE, ...)`. `status(x,
+refresh = TRUE)` calls it with `dry_run = FALSE`.
+
+## 11.1 Reported by the job vs by the scheduler
+
+* **Job-reported:** the job's own hook (or its breadcrumb) said so. Knows the
+  true exit code and can report a `SIGTERM` before dying. Cannot report if killed
+  with `SIGKILL`, if the node dies, or before the hook runs.
+* **Scheduler-reported:** `sacct`/`qstat`/`ps` says so. Authoritative about
+  whether the job is queued/running/ended and about out-of-memory and node
+  failures; less precise about *why* something ended, and may forget the job
+  (Torque after its keep time; `tracejob` needs server logs).
+
+## 11.2 Which rows
+
+Pending rows: status `QUEUED`, `RUNNING`, `SUSPENDED`, or `reported_by =
+INFERRED` (e.g. `SKIPPED`). Group by `scheduler_name`; query in chunks of 200.
+If the scheduler query returns `UNAVAILABLE`, stop early (do not write).
+
+## 11.3 Action table
+
+| DB row | Scheduler says | Action | Write |
+|---|---|---|---|
+| `QUEUED`/`RUNNING`/`SUSPENDED` | `FAILED` / `CANCELLED` | `UPDATE_TERMINAL` | set status, `reported_by = SCHEDULER`, end time if available; run cascade |
+| `QUEUED`/`RUNNING` | `COMPLETED` (non-local only) | `UPDATE_TERMINAL` | set `COMPLETED`, `SCHEDULER` |
+| `QUEUED` | `RUNNING` | `UPDATE_RUNNING` | set `RUNNING` |
+| `RUNNING` | `QUEUED` (requeue) | `UNCHANGED` | none |
+| `SKIPPED` (inferred) | `CANCELLED` / `FAILED` | `CONFIRM` | `reported_by = SCHEDULER` |
+| `SKIPPED` (inferred) | `QUEUED` (still waiting) | `UNRESOLVED` | none; `note`: cancel it |
+| `SKIPPED` (inferred) | job actually ran (`RUNNING`/`COMPLETED`/...) | `CORRECT` | set actual status; clear inferred flag |
+| any pending | `MISSING` / `UNKNOWN` / `UNAVAILABLE` | `UNRESOLVED` | none |
+| job-reported terminal | a **different** terminal | `CONFLICT` | **never overwrite**; report only |
+
+Local rows are never set to `COMPLETED` from scheduler absence.
+Writes use compare-and-set (`expected_status`) and happen only when
+`dry_run = FALSE`. Use scheduler end times when present, else the current time.
+"`SKIPPED` check": reconciliation also uses the edge's `afterok` signal for
+more evidence (if the signal is `afterok`, an upstream failure confirms the
+`SKIPPED` inference; if `afterany`, a `SKIPPED` row should not exist and is
+flagged `CORRECT`).
+
+## 11.4 Order of operations
+
+1. Read breadcrumb files (distinct `job_tracking.breadcrumb` paths); apply
+   unseen events (job-reported truth) using `tracking_events` for idempotency.
+2. Select pending rows; query the scheduler; build the action table.
+3. If `dry_run = FALSE`, apply actions, then run the cascade for newly terminal
+   rows.
+4. Return the action tibble (columns: `row_id`, `job_name`, `db_status`,
+   `scheduler_status`, `action`, `applied`, `note`).
+
+## 11.5 Scheduler differences
+
+| | Slurm | Torque | Local |
+|---|---|---|---|
+| Source | `sacct -X -P` | `qstat -f`, then `tracejob` | `ps` |
+| Failure of the query | non-zero exit -> `UNAVAILABLE` (changed from `MISSING`) | per-job calls; unreachable -> `UNAVAILABLE` | n/a |
+| Forgets jobs? | after the accounting retention period | after the site's keep time; `tracejob` needs logs | immediately |
+| Cancel detection | state `CANCELLED` | text regex (`cancel\|deleted\|removed\|qdel`) | none |
+| `COMPLETED` from scheduler | trusted | trusted (exit status 0) | **not trusted** (absence means "gone", not "succeeded") |
+| Dependency never satisfied | `PENDING` + `DependencyNeverSatisfied` | held | polling-based |
+
+# Tags (phase 1)
+
+`track(tags = list(subject = "01", step = "preproc"))` stores user-supplied
+key/value info at submit time in `job_tags` with `source = "SUBMIT"`.
+Values are coerced to character; keys must be non-empty, unique, and valid
+names. `status()` can show tags (optionally as columns). In BrainGnomes the
+analogous fields (`stage`, `sub_id`, etc.) were pipeline-defined and came from
+a manifest, **not** user-supplied; hpcR tags are genuinely user-supplied.
+
+# Phase 2 (design only, do not build now)
+
+## 13.1 Sub-jobs spawned from inside a job
+
+* `spawn(<job>)` (in `R/sugar.R`) called in a running script reads the parent
+  identity from the `HPCR_*` environment variables, inherits the DB and
+  `sequence_id`, registers the child row with `parent_row` set (unlimited depth,
+  no levels). Outside a tracked job it falls back to plain `submit()` with a
+  message.
+* The user marks the parent with something like
+  `sequencing(expect_children = TRUE)` so tracking knows to wait.
+* Effective parent status: its own script `COMPLETED` only means its code ended.
+  Effective status stays `RUNNING` until all children are terminal; a `FAILED`
+  child makes the effective parent `FAILED`.
+* `run_r_job.R` gets the "add parents" step and the `wait_for_job(SUB_JOB_IDS,
+  ...)` step (the commented-out code), with the failure rule: if
+  `all_subs_success` is violated, `stop()` (the template writes `FAILED`).
+  `inst/bin/tracking_add_child.R` is the CLI version for non-R jobs.
+* `tracking_cascade(include_children = )` is added. The failure cascade goes
+  downstream but not back into the failing job's own children.
+* **Open decision:** a downstream job's dependency is fixed at submit time,
+  before children exist. Options: the parent waits via `wait_for_job()` on its
+  children; a sentinel job (BrainGnomes has `postprocess_sentinel` scripts in
+  `inst/hpc_scripts`); or edit the downstream dependency afterwards
+  (`scontrol update ... Dependency=`, `qalter -W depend=`).
+
+## 13.2 Inline runtime tags
+
+`tag(n_rows = 1204)` writes to `job_tags` with `source = "RUNTIME"` (re-tagging
+overwrites the value; `set_at` records when). Useful when the information is
+only known during the job. Keep it small and scalar. Failures warn and never
+abort the job; outside a tracked job it is a no-op with a message.
+`inst/bin/tracking_tag.R` is the CLI version. Phase 2 reuses the same `HPCR_*`
+environment plumbing and the same hook-failure principles (Section 10.5).
+
+# File-by-file change list
+
+| File | Change |
+|---|---|
+| `R/tracking.R` (**new, only new R file**) | Generics; SQLite methods; `.sqlite_connect()` (busy timeout), `.sqlite_schema()`; `.tracking_db_name()`, `.tracking_backend(job)`; `.status_from_tracking()`; `.reconcile_plan()`, `.reconcile_apply()`, breadcrumb reader; `.cli_tracking_update()`. If it grows well past ~900 lines, split later. |
+| `R/sugar.R` | `track()` |
+| `R/job_classes.R` | `class_pb_tracking`, `class_tracking_backend`, `class_tracking_sqlite`, `class_job_status`; `.tracking` and `.submission` properties |
+| `R/job_methods.R` | `status()` generic + methods; `job_id()`; `submit()` registers rows/edges and returns the object with `.submission` |
+| `R/check_job_status.R` | uppercase statuses, `UNAVAILABLE`, `.status_from_scheduler()` machinery for `status()` |
+| `R/update_job.R` | sequence `+` method; applying `.tracking` |
+| `R/sequencing.R` | `.resolve_tracking_db()`; edge recording from `wait_signal` |
+| `R/submit_job.R` | `.tracking_env_vars()`; pass env/paths to templates |
+| `R/print_job.R` | print/`as.data.frame`/`as_tibble` for `class_job_status`; submitted-job print |
+| `R/wait_for_job.R` | uppercase terminal statuses |
+| `R/utils.R` | `.job_obj_guard()` `job_id()` hint |
+| `R/defaults.R` | `getOption("hpcR.tracking_timeout", 10)` |
+| `R/compile_job.R` | `.get_system_file()` for the new layout |
+| `R/validate.R` | validate `track()` inputs (db path, timeout, tags) |
+| `DESCRIPTION` | add `DBI`, `RSQLite` to `Imports`; regenerate `NAMESPACE` with roxygen; keep `Collate` in sync |
+| `NAMESPACE`/man | export `track`, `status`, `job_id`, `tracking_*` |
+| `inst/` | reorganize and add files per Section 10.2; update `run_r_job.R` |
+| `NEWS.md` | new entries; correct the stale `clone()` entry |
+| vignettes/README | uppercase statuses; new `submit()` return; a tracking vignette section |
+| tests | see Section 15 |
+
+# Tests
+
+* **Status vocabulary:** `.standardize_statuses()` returns uppercase; update
+  `test-status-wait.R`, `test-run.R`, `test-submit-invoke.R`.
+* **submit/job_id:** return value carries `.submission`; `job_id()` for job,
+  sequence, unsubmitted; print method shows the id; guard hint.
+* **track():** default DB path; explicit path; sequence `+` applies to all
+  members; overwrite warning names jobs; conflicting explicit DBs error;
+  partial-tracking message and warning.
+* **Backend:** schema creation/versioning; register/update/query round-trip;
+  compare-and-set; resolve-id retry; refusing to write a newer schema.
+* **Cascade:** by `signal` (`afterok`, `aftercorr`, `afternotok`, `afterany`);
+  `SKIPPED` + `INFERRED`; already-terminal rows untouched.
+* **status():** each resolution path; `refresh = FALSE` is read-only; staleness
+  hint; print snapshot; `as.data.frame`.
+* **Hooks/fallback (simulated failures):** hpcR missing (empty `R_LIBS`), DBI
+  missing, read-only DB, locked DB, newer schema, hung hook (timeout). In every
+  case: job exit code unchanged, breadcrumb written, reconciliation applies it
+  and is idempotent.
+* **Reconciliation:** every row of the action table with mocked scheduler
+  output; local never `COMPLETED` from absence; `CONFLICT` never overwrites.
+* **Template tests:** use the existing local-scheduler test setup (see
+  `test-run.R`) where possible; skip scheduler-specific tests when `sbatch`/
+  `qsub` are absent, as the current tests do.
+
+# Build order (with acceptance checks)
+
+1. **`inst/` reorganization** + `.get_system_file()` update. *Check:* existing
+   compile/submit tests pass unchanged.
+2. **Uppercase statuses** everywhere + tests. *Check:* no lowercase status
+   literals remain (grep); suite passes.
+3. **`.submission`, `job_id()`, `submit()` return, print, guard hint.**
+4. **Classes, generics, SQLite backend** (`R/tracking.R`, `job_classes.R`).
+5. **`track()`, DB resolution, sequence `+`, tags, edges/signals.**
+6. **Submit-time registration, env vars, hooks, `tracking_update.R`,
+   fallbacks/breadcrumbs.** *Check:* simulated-failure tests pass.
+7. **`status()`, `class_job_status`, reconciliation.**
+8. **Tests, docs, vignette, NEWS.** *Check:* `devtools::check()` clean of new
+   warnings.
+
+Branch note: this worktree's branch is `zacharyvig-vigilant-sniffle`; rename it
+(kebab-case, e.g. `hpcr-job-tracking`) before the first commit if the workspace
+instructions call for it. Commit in logical steps matching the build order.
+
+# Open items to verify {#open-items}
+
+1. Exactly what `<basename>` is for the default DB name (job name vs sequence
+   name) and whether sequences have a name.
+2. Local scheduler `wait_signal` semantics (how local dependencies are
+   enforced) and therefore the local cascade rule.
+3. Whether `status()` should apply `COMPLETED` from the scheduler for
+   non-local rows (this plan: yes).
+4. Existing mapping details in `.standardize_statuses()` for TIMEOUT, OUT_OF_MEMORY,
+   NODE_FAIL (this plan keeps the existing mapping; confirm they map to
+   `FAILED`).
+5. Whether any exported function/documentation currently promises the old
+   `submit()` return value (`invisible` scheduler id) beyond the tests listed.
+6. Windows: local jobs are unsupported; the bash hooks only run on Unix
+   schedulers. Confirm nothing on the Windows path breaks when `track()` is used
+   with a job that is never submitted locally.
+
+# Appendix A: BrainGnomes to hpcR mapping
+
+| BrainGnomes | hpcR |
+|---|---|
+| `STARTED` | `RUNNING` |
+| `FAILED_BY_EXT` | `SKIPPED` (`reported_by = INFERRED`) |
+| `parent_id` + `child_level` | `job_dependencies` edge table (+ reserved `parent_row`) |
+| `job_obj` BLOB per row | not carried over |
+| `job_contracts`, manifests, receipts | deferred |
+| `capture_output_manifest()` | deferred |
+| `inst/upd_job_status.R` | `inst/bin/tracking_update.R` + `inst/shell/tracking_hooks.sh` |
+| `inst/insert_tracked_job.R` | not needed (registration happens in R inside `submit()`) |
+| `inst/add_parent.R` | phase 2 `inst/bin/tracking_add_child.R` (no level) |
+| `reconcile_tracked_jobs()` | `tracking_reconcile()` |
+| 40-column wide table + `ALTER TABLE` migrations | narrow table + `user_version` |
+
+# Appendix B: audit checklist (quick yes/no review)
+
+* [ ] Tracking is opt-in; nothing changes for users who never call `track()`.
+* [ ] One uppercase vocabulary everywhere; `SKIPPED` replaces `FAILED_BY_EXT`.
+* [ ] upstream/downstream used for sequences; parent/child only for sub-jobs.
+* [ ] `submit()` returns the object; `job_id()` works; print shows the id.
+* [ ] All jobs in a sequence share one DB; conflicting explicit paths error.
+* [ ] Edges store `signal`; cascade follows the signal table.
+* [ ] Hooks are no-ops without `HPCR_TRACKING_DB`; hook failure never alters
+      exit code or hangs; breadcrumb always written on failure.
+* [ ] `status()` default is read-only and offline-safe; staleness hint shown.
+* [ ] Reconciliation never overwrites a job-reported conflict; never marks local
+      `COMPLETED` from absence; idempotent.
+* [ ] Only one new R file (`R/tracking.R`); `inst/` is in subfolders.
