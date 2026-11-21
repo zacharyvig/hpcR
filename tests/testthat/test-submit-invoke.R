@@ -169,13 +169,11 @@ test_that("linear job sequence submission succeeds", {
 
   sequence <- upstream_job %->% downstream_job
 
-  submission <- submit(sequence)
+  submission <- job_id(submit(sequence))
 
   expect_true(file.exists(upstream_script))
   expect_true(file.exists(downstream_script))
 
-  # Adapt this section if submit(sequence) returns an updated sequence rather
-  # than a named scheduler-ID vector.
   expect_true(is.character(submission))
   expect_length(submission, 2L)
   expect_false(anyNA(submission))
@@ -253,7 +251,7 @@ test_that("named job sequence submission succeeds", {
     downstream_job
   )
 
-  submission <- submit(sequence)
+  submission <- job_id(submit(sequence))
 
   expect_true(is.character(submission))
   expect_length(submission, 2L)
@@ -344,7 +342,7 @@ test_that("branching job sequence submission succeeds", {
 
   sequence <- upstream_job %->% branch(branch_a, branch_b)
 
-  submission <- submit(sequence)
+  submission <- job_id(submit(sequence))
 
   expect_true(is.character(submission))
   expect_length(submission, 3L)
@@ -442,7 +440,7 @@ test_that("joined job sequence submission succeeds", {
 
   sequence <- branch(branch_a, branch_b) %->% joined
 
-  submission <- submit(sequence)
+  submission <- job_id(submit(sequence))
 
   expect_true(is.character(submission))
   expect_length(submission, 3L)

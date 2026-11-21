@@ -10,6 +10,10 @@ submit(x)
 \arguments{
 \item{x}{An \link{hpcR} job or job sequence object.}
 }
+\value{
+The submitted job or job sequence, with scheduler ID(s) recorded.
+  Use \code{\link{job_id}} to extract them.
+}
 \description{
 Submit a job or job sequence to an HPC scheduler
 }

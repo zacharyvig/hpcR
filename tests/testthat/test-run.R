@@ -92,7 +92,7 @@ test_that(".submit_to_local oneliner submission succeeds", {
   expect_true(nzchar(job_id))
 
   oneliner_job <- oneliner(command, job_name = "test_job")
-  job_id <- submit(oneliner_job)
+  job_id <- job_id(submit(oneliner_job))
 
   expect_true(nzchar(job_id))
 
@@ -199,7 +199,7 @@ test_that("compiled R jobs receive resolved library paths", {
     packages("stats") +
     libraries(job = custom_lib)
 
-  job_id <- submit(job)
+  job_id <- job_id(submit(job))
   .wait_for_job(
     job_ids = as.character(job_id),
     repolling_interval = 0.1,

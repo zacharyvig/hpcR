@@ -42,7 +42,7 @@
 #' 'torque' and 'qsub' (aliases), 'slurm' and 'sbatch' (aliases), and 'local'
 #' or 'sh' (aliases).
 #' @param standardize_output Logical. If \code{TRUE}, will return standardized
-#' values in the status column (e.g., "complete", "failed", etc.). Otherwise,
+#' values in the status column (e.g., "COMPLETED", "FAILED", etc.). Otherwise,
 #' returns raw statuses depending on the scheduler. Default: \code{TRUE}.
 #' @param control A list of additional, scheduler-specific arguments. See
 #' Details.
@@ -208,7 +208,7 @@ get_default_status_columns <- function(
         "Command: sacct {command}"),
       call = .call
     )
-    return(data.frame(JobID = job_ids, State = "MISSING"))
+    return(data.frame(JobID = job_ids, State = "UNAVAILABLE"))
   }
 
   # parse sacct output into data frame
@@ -293,7 +293,7 @@ get_default_status_columns <- function(
   qstat_output <- .torque_qstat_full(job_id)
   if (.status_command_succeeded(qstat_output)) {
     qstat_state <- .parse_torque_qstat_output(qstat_output)
-    if (!identical(qstat_state, "unknown")) {
+    if (!identical(qstat_state, "UNKNOWN")) {
       return(
         data.frame(JobID = job_id, State = qstat_state, stringsAsFactors = FALSE)
       )
@@ -304,7 +304,7 @@ get_default_status_columns <- function(
   trace_state <- if (.status_command_succeeded(trace_output)) {
     .parse_torque_tracejob_output(trace_output)
   } else {
-    "missing"
+    "MISSING"
   }
   data.frame(JobID = job_id, State = trace_state, stringsAsFactors = FALSE)
 }
@@ -319,20 +319,20 @@ get_default_status_columns <- function(
 #' @noRd
 .parse_torque_qstat_output <- function(output) {
   output <- paste(output, collapse = "\n")
-  if (.has_torque_cancel_evidence(output)) return("cancelled")
+  if (.has_torque_cancel_evidence(output)) return("CANCELLED")
 
   job_state <- .parse_torque_field(output, "job_state")
   exit_status <- .parse_torque_field(output, "exit_status")
-  if (identical(job_state, character(0))) return("unknown")
+  if (identical(job_state, character(0))) return("UNKNOWN")
 
   state_map <- c(
-    Q = "queued",
-    W = "queued",
-    H = "queued",
-    R = "running",
-    E = "running",
-    S = "suspended",
-    T = "suspended"
+    Q = "QUEUED",
+    W = "QUEUED",
+    H = "QUEUED",
+    R = "RUNNING",
+    E = "RUNNING",
+    S = "SUSPENDED",
+    T = "SUSPENDED"
   )
   if (job_state %in% names(state_map)) {
     return(unname(state_map[[job_state]]))
@@ -340,21 +340,21 @@ get_default_status_columns <- function(
   if (identical(job_state, "C")) {
     return(.map_torque_exit_status(exit_status))
   }
-  "unknown"
+  "UNKNOWN"
 }
 
 #' Parse tracejob output into hpcR's standardized states.
 #' @noRd
 .parse_torque_tracejob_output <- function(output) {
   output <- paste(output, collapse = "\n")
-  if (.has_torque_cancel_evidence(output)) return("cancelled")
+  if (.has_torque_cancel_evidence(output)) return("CANCELLED")
 
   exit_status <- .parse_torque_field(output, "exit_status")
   if (!identical(exit_status, character(0))) {
     return(.map_torque_exit_status(exit_status))
   }
 
-  "missing"
+  "MISSING"
 }
 
 #' Extract a simple field assignment from TORQUE status output.
@@ -378,10 +378,10 @@ get_default_status_columns <- function(
 #' Map TORQUE terminal exit status to hpcR's standardized states.
 #' @noRd
 .map_torque_exit_status <- function(exit_status) {
-  if (identical(exit_status, character(0))) return("unknown")
+  if (identical(exit_status, character(0))) return("UNKNOWN")
   exit_status <- suppressWarnings(as.integer(exit_status))
-  if (is.na(exit_status)) return("unknown")
-  if (identical(exit_status, 0L)) "complete" else "failed"
+  if (is.na(exit_status)) return("UNKNOWN")
+  if (identical(exit_status, 0L)) "COMPLETED" else "FAILED"
 }
 
 
@@ -519,12 +519,13 @@ get_default_status_columns <- function(
       jobs <- names(job_statuses)[job_statuses == status]
       status_message <- switch(
         status,
-        "running" = "still running",
-        "queued" = "still queued",
-        "suspended" = "suspended",
-        "missing" = "missing from scheduler response",
-        "failed" = "failed",
-        "cancelled" = "cancelled",
+        "RUNNING" = "still running",
+        "QUEUED" = "still queued",
+        "SUSPENDED" = "suspended",
+        "MISSING" = "missing from scheduler response",
+        "UNAVAILABLE" = "unavailable (scheduler query failed)",
+        "FAILED" = "failed",
+        "CANCELLED" = "cancelled",
         cli::cli_abort(
           "Unsupported status: {status}", .internal = TRUE
         )
@@ -560,22 +561,23 @@ get_default_status_columns <- function(
       function(x) {
         switch(
           x,
-          "BOOT_FAIL" = "failed",
-          "CANCELLED" = "cancelled",
-          "COMPLETED" = "complete",
-          "DEADLINE" = "failed",
-          "FAILED" = "failed",
-          "NODE_FAIL" = "failed",
-          "OUT_OF_MEMORY" = "failed",
-          "PENDING" = "queued",
-          "PREEMPTED" = "failed",
-          "RUNNING" = "running",
-          "REQUEUED" = "queued",
-          "REVOKED" = "failed",
-          "SUSPENDED" = "suspended",
-          "TIMEOUT" = "failed",
-          "MISSING" = "missing", # scheduler has not registered the job
-          "unknown"
+          "BOOT_FAIL" = "FAILED",
+          "CANCELLED" = "CANCELLED",
+          "COMPLETED" = "COMPLETED",
+          "DEADLINE" = "FAILED",
+          "FAILED" = "FAILED",
+          "NODE_FAIL" = "FAILED",
+          "OUT_OF_MEMORY" = "FAILED",
+          "PENDING" = "QUEUED",
+          "PREEMPTED" = "FAILED",
+          "RUNNING" = "RUNNING",
+          "REQUEUED" = "QUEUED",
+          "REVOKED" = "FAILED",
+          "SUSPENDED" = "SUSPENDED",
+          "TIMEOUT" = "FAILED",
+          "MISSING" = "MISSING", # scheduler has not registered the job
+          "UNAVAILABLE" = "UNAVAILABLE", # scheduler query itself failed
+          "UNKNOWN"
         )
       },
       character(1)
@@ -593,14 +595,14 @@ get_default_status_columns <- function(
       function(x) {
         switch(
           x,
-          "C" = "complete",
-          "I" = "running", # idle/sleeping
-          "R" = "running",
-          "S" = "running", # sleeping
-          "T" = "suspended",
-          "U" = "running",
-          "Z" = "failed", # zombie
-          "unknown"
+          "C" = "COMPLETED",
+          "I" = "RUNNING", # idle/sleeping
+          "R" = "RUNNING",
+          "S" = "RUNNING", # sleeping
+          "T" = "SUSPENDED",
+          "U" = "RUNNING",
+          "Z" = "FAILED", # zombie
+          "UNKNOWN"
         )
       },
       character(1)

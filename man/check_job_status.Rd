@@ -25,7 +25,7 @@ by owner.}
 or 'sh' (aliases).}
 
 \item{standardize_output}{Logical. If \code{TRUE}, will return standardized
-values in the status column (e.g., "complete", "failed", etc.). Otherwise,
+values in the status column (e.g., "COMPLETED", "FAILED", etc.). Otherwise,
 returns raw statuses depending on the scheduler. Default: \code{TRUE}.}
 
 \item{control}{A list of additional, scheduler-specific arguments. See

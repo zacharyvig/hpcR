@@ -49,7 +49,15 @@ test_that(".standardize_statuses maps slurm states", {
   out <- hpcR:::.standardize_statuses(df, "slurm")
   out <- unname(out)
 
-  expect_equal(out, c("running", "complete", "failed", "missing", "cancelled"))
+  expect_equal(out, c("RUNNING", "COMPLETED", "FAILED", "MISSING", "CANCELLED"))
+})
+
+test_that(".standardize_statuses maps a failed scheduler query to UNAVAILABLE", {
+  df <- data.frame(JobID = "1", State = "UNAVAILABLE", stringsAsFactors = FALSE)
+
+  out <- hpcR:::.standardize_statuses(df, "slurm")
+
+  expect_equal(unname(out), "UNAVAILABLE")
 })
 
 test_that(".standardize_statuses maps local states", {
@@ -62,7 +70,7 @@ test_that(".standardize_statuses maps local states", {
   out <- hpcR:::.standardize_statuses(df, "local")
   out <- unname(out)
 
-  expect_equal(out, c("running", "running", "complete", "failed"))
+  expect_equal(out, c("RUNNING", "RUNNING", "COMPLETED", "FAILED"))
 })
 
 test_that(".check_job_status_local treats absent pids as complete", {
@@ -75,7 +83,7 @@ test_that(".check_job_status_local treats absent pids as complete", {
     standardize_output = TRUE
   )
 
-  expect_equal(unname(out), "complete")
+  expect_equal(unname(out), "COMPLETED")
 })
 
 test_that(".check_job_status_torque maps qstat states", {
@@ -113,7 +121,10 @@ test_that(".check_job_status_torque maps qstat states", {
     standardize_output = TRUE
   )
 
-  expect_equal(unname(out), names(qstat_output))
+  expect_equal(
+    unname(out),
+    c("QUEUED", "RUNNING", "SUSPENDED", "COMPLETED", "FAILED", "CANCELLED")
+  )
 })
 
 test_that(".check_job_status_torque uses tracejob for terminal fallback", {
@@ -140,7 +151,7 @@ test_that(".check_job_status_torque uses tracejob for terminal fallback", {
 
   expect_equal(
     unname(out),
-    c("cancelled", "complete", "failed", "missing")
+    c("CANCELLED", "COMPLETED", "FAILED", "MISSING")
   )
 })
 
@@ -156,13 +167,13 @@ test_that(".check_job_status_torque falls back when qstat is unparseable", {
     standardize_output = TRUE
   )
 
-  expect_equal(unname(out), "complete")
+  expect_equal(unname(out), "COMPLETED")
 })
 
 test_that("wait_for_job returns TRUE when jobs complete", {
   testthat::local_mocked_bindings(
     .check_job_status = function(job_ids, scheduler_name, ...) {
-      "complete"
+      "COMPLETED"
     },
     .package = "hpcR"
   )
@@ -183,7 +194,7 @@ test_that(".wait_for_job treats cancelled jobs as terminal failures", {
   testthat::local_mocked_bindings(
     .check_job_status = function(job_ids, scheduler_name, ...) {
       calls <<- calls + 1L
-      c("100" = "cancelled")
+      c("100" = "CANCELLED")
     },
     .package = "hpcR"
   )
@@ -205,7 +216,7 @@ test_that(".wait_for_job treats cancelled jobs as terminal failures", {
 
 test_that(".give_status_update reports cancelled jobs", {
   expect_message(
-    .give_status_update(c("100" = "cancelled"), "cancelled"),
+    .give_status_update(c("100" = "CANCELLED"), "CANCELLED"),
     "cancelled",
     fixed = TRUE
   )
@@ -214,7 +225,7 @@ test_that(".give_status_update reports cancelled jobs", {
 test_that(".wait_for_job returns FALSE on timeout when stop_on_timeout is FALSE", {
   testthat::local_mocked_bindings(
     .check_job_status = function(job_ids, scheduler_name, ...) {
-      "running"
+      "RUNNING"
     },
     .package = "hpcR"
   )

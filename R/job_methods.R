@@ -23,6 +23,8 @@ NULL
 
 #' @title Submit a job or job sequence to an HPC scheduler
 #' @param x An \link{hpcR} job or job sequence object.
+#' @return The submitted job or job sequence, with scheduler ID(s) recorded.
+#'   Use \code{\link{job_id}} to extract them.
 #' @examples
 #' tmp_script <- tempfile(pattern = "my_script", fileext = ".R")
 #' writeLines("print('ok')", tmp_script)
@@ -80,7 +82,12 @@ S7::method(submit, class_job) <- function(x) {
     cli::cli_progress_step(
       "Job submitted successfully with ID: {.code {out}}"
     )
-    invisible(out)
+    x@.submission <- list(
+      job_id = as.character(out),
+      scheduler_name = compiled_job@scheduler@scheduler_name,
+      submitted_at = Sys.time()
+    )
+    x
   }
 }
 
@@ -189,7 +196,7 @@ S7::method(submit, class_job_sequence) <- function(x) {
       }
 
       # submit the job
-      scheduler_id <- submit(job)
+      scheduler_id <- job_id(submit(job))
 
       if (is.null(scheduler_id) || !length(scheduler_id)) {
         # failed submissions/NULL ids should be handled by invoke_system,
@@ -222,13 +229,56 @@ S7::method(submit, class_job_sequence) <- function(x) {
     pending <- pending[!pending %in% ready_nodes]
   }
 
-  invisible(submitted_ids)
+  x@.submission <- list(
+    job_ids = submitted_ids,
+    submitted_at = Sys.time()
+  )
+  x
 
 }
 
 S7::method(submit, S7::class_any) <- function(x) {
   cli::cli_abort(
     "Invalid object type for submission; must be a job or job sequence.",
+    call = rlang::caller_env()
+  )
+}
+
+#' @title Get scheduler job IDs from a submitted job or job sequence
+#' @description
+#' \code{submit()} returns the submitted job (or job sequence).
+#' \code{job_id()} extracts the scheduler job ID(s) from it, for use with
+#' \code{\link{check_job_status}} and \code{\link{wait_for_job}}.
+#' @param x A submitted \link{hpcR} job or job sequence object.
+#' @return A scalar character scheduler ID for a job. For a job sequence, a
+#'   character vector of scheduler IDs named by the object IDs of the jobs in
+#'   the sequence. \code{character(0)} if \code{x} has not been submitted.
+#' @examples
+#' \dontrun{
+#' submitted <- submit(my_job)
+#' job_id(submitted)
+#' check_job_status(job_id(submitted), scheduler_name = "slurm")
+#' }
+#' @name job_id
+#' @docType methods
+#' @export
+job_id <- S7::new_generic("job_id", "x", function(x) {
+  S7::S7_dispatch()
+})
+
+S7::method(job_id, class_job) <- function(x) {
+  out <- x@.submission$job_id
+  if (is.null(out)) character(0) else out
+}
+
+S7::method(job_id, class_job_sequence) <- function(x) {
+  out <- x@.submission$job_ids
+  if (is.null(out)) character(0) else out
+}
+
+S7::method(job_id, S7::class_any) <- function(x) {
+  cli::cli_abort(
+    "Invalid object type; must be a job or job sequence.",
     call = rlang::caller_env()
   )
 }
@@ -307,6 +357,14 @@ S7::method(format, class_job) <- function(x, ...) {
 }
 
 S7::method(print, class_job) <- function(x, ...) {
+  cat(format(x, ...), sep = "\n")
+}
+
+S7::method(format, class_job_sequence) <- function(x, ...) {
+  .format_job_sequence(x, ...)
+}
+
+S7::method(print, class_job_sequence) <- function(x, ...) {
   cat(format(x, ...), sep = "\n")
 }
 

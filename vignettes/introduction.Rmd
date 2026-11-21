@@ -145,7 +145,7 @@ directory, and package setup are correct. This starts a background process,
 waits for it to finish, and reads the CSV file written by the script.
 
 ```{r, eval = FALSE}
-local_job_id <- sleep_job |> submit()
+local_job_id <- sleep_job |> submit() |> job_id()
 
 wait_for_job(
   job_ids = local_job_id,
@@ -185,7 +185,7 @@ Use `submit()` for R scripts configured with `rjob()`. `hpcR` then runs the
 script with the appropriate R job wrapper on the selected backend.
 
 ```{r, eval = FALSE}
-job_id <- cluster_job |> submit()
+job_id <- cluster_job |> submit() |> job_id()
 job_id
 ```
 
@@ -261,7 +261,7 @@ analysis_job <- rjob("analysis") +
 
 summary(analysis_job)
 
-job_id <- submit(analysis_job)
+job_id <- job_id(submit(analysis_job))
 check_job_status(job_id, scheduler_name = "slurm")
 ```
 
