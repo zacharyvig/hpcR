@@ -178,7 +178,7 @@ job_id
 ```
 
 Use the returned ID to inspect status. `hpcR` standardizes scheduler states
-such as `queued`, `running`, `complete`, `failed`, and `cancelled`.
+such as `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`, and `CANCELLED`.
 
 ```{r, eval = FALSE}
 check_job_status(

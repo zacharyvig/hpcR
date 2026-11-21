@@ -1,5 +1,10 @@
 # hpcR (development version)
 
+## Job status
+
+* `check_job_status()` and `wait_for_job()` now use one uppercase status vocabulary (`QUEUED`, `RUNNING`, `SUSPENDED`, `COMPLETED`, `FAILED`, `CANCELLED`, `MISSING`, `UNKNOWN`), plus `UNAVAILABLE` when the scheduler query itself fails.
+* Package `inst/` files are now organized into `templates/` and `runners/` subfolders.
+
 ## Package libraries
 
 * `packages()` now checks declared packages against the active library search path and supplies that path to the compute R process through `R_LIBS`.

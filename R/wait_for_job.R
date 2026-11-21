@@ -86,8 +86,8 @@ wait_for_job <- function(
   job_complete <- FALSE
   wait_start <- Sys.time()
   return_code <- NULL
-  terminal_statuses <- c("failed", "cancelled", "complete")
-  failure_statuses <- c("failed", "cancelled")
+  terminal_statuses <- c("FAILED", "CANCELLED", "COMPLETED")
+  failure_statuses <- c("FAILED", "CANCELLED")
 
   # start main loop
   while (isFALSE(job_complete)) {
@@ -105,7 +105,8 @@ wait_for_job <- function(
     if (isFALSE(quiet)) {
       .give_status_update(
         job_statuses, c(
-          "running", "queued", "suspended", "missing", "cancelled"
+          "RUNNING", "QUEUED", "SUSPENDED", "MISSING", "UNAVAILABLE",
+          "CANCELLED"
         )
       )
     }

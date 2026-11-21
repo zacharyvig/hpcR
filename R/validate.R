@@ -734,7 +734,7 @@ validate_property <- function(
             )
           }
         )
-        missing <- identical(status, "missing")
+        missing <- identical(status, "MISSING")
         if (any(missing)) {
           notify(
             c(
