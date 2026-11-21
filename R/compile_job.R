@@ -144,6 +144,7 @@ S7::method(compile, S7::class_any) <- function(x) {
         "Unsupported scheduler: {scheduler_name}", .internal = TRUE
       )
     )
+    sub_dir <- "templates"
   } else if (file_type == "run") {
     file_name <- switch(
       job_language,
@@ -152,9 +153,11 @@ S7::method(compile, S7::class_any) <- function(x) {
         "Unsupported job language: {job_language}", .internal = TRUE
       )
     )
+    sub_dir <- "runners"
   }
   tryCatch(
     system.file(
+      sub_dir,
       file_name,
       package = "hpcR",
       mustWork = TRUE
