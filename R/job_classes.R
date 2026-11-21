@@ -264,7 +264,11 @@ class_job <- S7::new_class(
     ),
     .compiled = guarded(".compiled", class_pb_compiled),
     .run_settings = guarded(".run_settings", class_pb_run_settings),
-    .metadata = guarded(".metadata", class_pb_metadata)
+    .metadata = guarded(".metadata", class_pb_metadata),
+    .submission = S7::new_property(
+      class = S7::class_list,
+      default = list()
+    )
   )
 )
 
@@ -342,7 +346,11 @@ class_job_sequence <- S7::new_class(
       class = S7::class_logical,
       default = FALSE
     ),
-    .metadata = guarded(".metadata", class_pb_metadata)
+    .metadata = guarded(".metadata", class_pb_metadata),
+    .submission = S7::new_property(
+      class = S7::class_list,
+      default = list()
+    )
   )
 )
 

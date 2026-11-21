@@ -3,6 +3,8 @@
 ## Job status
 
 * `check_job_status()` and `wait_for_job()` now use one uppercase status vocabulary (`QUEUED`, `RUNNING`, `SUSPENDED`, `COMPLETED`, `FAILED`, `CANCELLED`, `MISSING`, `UNKNOWN`), plus `UNAVAILABLE` when the scheduler query itself fails.
+* `submit()` now returns the submitted job (or job sequence) instead of the scheduler ID. Use the new `job_id()` generic to get the scheduler ID (a named vector for sequences), e.g. `submit(job) |> job_id()`.
+* `check_job_status()` and `wait_for_job()` now suggest `job_id()` when given a job object.
 * Package `inst/` files are now organized into `templates/` and `runners/` subfolders.
 
 ## Package libraries

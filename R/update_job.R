@@ -292,6 +292,7 @@ S7::method(`+`, list(class_job, class_job_update)) <- function(e1, e2) {
   S7::prop(metadata, "created_at") <- Sys.time()
   S7::prop(metadata, "object_id") <- .generate_object_id(obj_type)
   S7::prop(obj, ".metadata") <- metadata
+  S7::prop(obj, ".submission") <- list()
 
   obj
 }

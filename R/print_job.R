@@ -20,8 +20,27 @@
 #' @noRd
 .format_job <- function(job, ...) {
   job_name <- if (length(job@job_name)) job@job_name else "(no name)"
+  submitted_id <- job_id(job)
   cli::cli_format_method({
     cli::cli_text("<<{.pkg hpcR} Job Object: '{job_name}'>>")
+    if (length(submitted_id)) {
+      cli::cli_text("Submitted with job ID: {.code {submitted_id}}")
+    }
+  })
+}
+
+#' Format a job sequence object for printing
+#' @noRd
+.format_job_sequence <- function(seq, ...) {
+  seq_name <- if (length(seq@sequence_name)) seq@sequence_name else "(no name)"
+  submitted_ids <- job_id(seq)
+  cli::cli_format_method({
+    cli::cli_text("<<{.pkg hpcR} Job Sequence Object: '{seq_name}'>>")
+    if (length(submitted_ids)) {
+      cli::cli_text(
+        "Submitted job ID{?s}: {.code {unname(submitted_ids)}}"
+      )
+    }
   })
 }
 

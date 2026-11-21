@@ -173,7 +173,7 @@ Once the preflight checks look correct, submit the configured job. This code is
 not run while the vignette is built because it contacts a real scheduler.
 
 ```{r, eval = FALSE}
-job_id <- debug_job |> submit()
+job_id <- debug_job |> submit() |> job_id()
 job_id
 ```
 

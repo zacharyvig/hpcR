@@ -335,6 +335,12 @@ get_supported_languages <- function() {
   }
   jobs <- is_job(x)
   if (any(jobs)) {
+    if (fn %in% c("check_job_status", "wait_for_job")) {
+      msgs <- c(
+        msgs,
+        "i" = "Use {.code job_id(job)} to get the scheduler job ID(s)."
+      )
+    }
     cli::cli_abort(msgs, call = .call)
   }
   invisible(x)
